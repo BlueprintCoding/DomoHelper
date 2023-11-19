@@ -78,18 +78,27 @@ browser.storage.local.get(['enabled', 'minWords'], function(settings) {
 
 // MutationObserver setup
 const observer = new MutationObserver((mutations, obs) => {
-    const descriptionTextArea = document.querySelector('textarea.input.margin-vertical-medium');
-    if (descriptionTextArea) {
-        console.log("Found necessary elements. Initializing...");
-        initOrUpdateModal(); // Corrected the function call here
-        obs.disconnect(); // Stop observing after initialization
-    }
+    // Run the observer continuously instead of disconnecting
+    mutations.forEach((mutation) => {
+        if (mutation.addedNodes.length) {
+            mutation.addedNodes.forEach((node) => {
+                if (node.nodeType === Node.ELEMENT_NODE && 
+                    (node.matches('.modal') || node.querySelector('.modal'))) {
+                    // Modal has been added to the DOM
+                    console.log("Modal opened.");
+                    initOrUpdateModal();
+                }
+            });
+        }
+    });
 });
 
 observer.observe(document.body, {
     childList: true,
     subtree: true
 });
+
+
 // Initialize or update modal when either 'Save' or 'Save and Run' is clicked
 var saveButtons = document.querySelectorAll('.db-split-button button.primary-button, .popover-wrapper .menu-list .db-dropdown-list-item');
 saveButtons.forEach(button => {
