@@ -18,11 +18,24 @@ function createToggleSaveButton(descriptionTextArea, minWords) {
     };
 }
 
-// Function to update the placeholder text and toggle save button state
+// Function to update the placeholder text, toggle save button state, and show required word count
 function updateModal(descriptionTextArea, minWords) {
     // Change the placeholder text
-    descriptionTextArea.placeholder = `Version Description (Minimum of ${minWords} words Required by Domo Helper Extension)`;
-    
+    descriptionTextArea.placeholder = `Version Description (Required)`;
+
+    // Add or update the word count message below the textarea
+    let wordCountMessage = descriptionTextArea.nextElementSibling;
+    const wordCountMessageId = 'word-count-message';
+    if (!wordCountMessage || wordCountMessage.id !== wordCountMessageId) {
+        // If the word count message doesn't exist or isn't the right element, create it
+        wordCountMessage = document.createElement('div');
+        wordCountMessage.id = wordCountMessageId;
+        wordCountMessage.style.color = 'LightGray';
+        wordCountMessage.style.marginTop = '-15px';
+        descriptionTextArea.parentNode.insertBefore(wordCountMessage, descriptionTextArea.nextSibling);
+    }
+    wordCountMessage.textContent = `A minimum of ${minWords} words is required by the Domo Helper Extension.`;
+
     // Update the event listener
     if (currentToggleSaveButton) {
         descriptionTextArea.removeEventListener('input', currentToggleSaveButton);
@@ -33,6 +46,7 @@ function updateModal(descriptionTextArea, minWords) {
     // Call the toggle function immediately to set the initial state of the save button
     currentToggleSaveButton();
 }
+
 
 // Function to initialize or update the logic for the modal
 function initOrUpdateModal() {
