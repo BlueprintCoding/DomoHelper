@@ -11,30 +11,35 @@ let currentToggleSaveButton;
 // Function to create toggle save button function
 function createToggleSaveButton(descriptionTextArea, minWords) {
     return function() {
-        var saveButton = document.querySelector('button.done.float-right.db-button');
+        var saveButton = document.querySelector('.modal-footer .df-save-footer button.done');
         if (saveButton) {
             saveButton.disabled = !hasMinimumWordCount(descriptionTextArea.value, minWords);
         }
     };
 }
 
-// Function to initialize the logic for the modal
-function initModal() {
-    var descriptionTextArea = document.querySelector('textarea.input.margin-vertical-medium');
+// Function to update the placeholder text and toggle save button state
+function updateModal(descriptionTextArea, minWords) {
+    // Change the placeholder text
+    descriptionTextArea.placeholder = `Version Description (Minimum of ${minWords} words Required by Domo Helper Extension)`;
+    
+    // Update the event listener
+    if (currentToggleSaveButton) {
+        descriptionTextArea.removeEventListener('input', currentToggleSaveButton);
+    }
+    currentToggleSaveButton = createToggleSaveButton(descriptionTextArea, minWords);
+    descriptionTextArea.addEventListener('input', currentToggleSaveButton);
+
+    // Call the toggle function immediately to set the initial state of the save button
+    currentToggleSaveButton();
+}
+
+// Function to initialize or update the logic for the modal
+function initOrUpdateModal() {
+    var descriptionTextArea = document.querySelector('.modal .input.margin-vertical-medium');
 
     if (descriptionTextArea) {
-        // Change the placeholder text
-        descriptionTextArea.placeholder = `Version Description (Minimum of ${minWords} words Required by Domo Helper Extension)`;
-        
-        // Update the event listener
-        if (currentToggleSaveButton) {
-            descriptionTextArea.removeEventListener('input', currentToggleSaveButton);
-        }
-        currentToggleSaveButton = createToggleSaveButton(descriptionTextArea, minWords);
-        descriptionTextArea.addEventListener('input', currentToggleSaveButton);
-
-        // Call the toggle function immediately to set the initial state of the save button
-        currentToggleSaveButton();
+        updateModal(descriptionTextArea, minWords);
     } else {
         console.log("Required elements not found");
     }
@@ -54,11 +59,7 @@ function applySettings(settings) {
     }
 
     // Reinitialize modal if it's open
-    var descriptionTextArea = document.querySelector('textarea.input.margin-vertical-medium');
-    if (descriptionTextArea) {
-        descriptionTextArea.placeholder = `Version Description (Minimum of ${minWords} words Required by Domo Helper Extension)`;
-        initModal(); // Reinitialize to update event listener
-    }
+    initOrUpdateModal();
 }
 
 // Listen for messages from the popup script
@@ -80,7 +81,7 @@ const observer = new MutationObserver((mutations, obs) => {
     const descriptionTextArea = document.querySelector('textarea.input.margin-vertical-medium');
     if (descriptionTextArea) {
         console.log("Found necessary elements. Initializing...");
-        initModal();
+        initOrUpdateModal(); // Corrected the function call here
         obs.disconnect(); // Stop observing after initialization
     }
 });
@@ -88,4 +89,9 @@ const observer = new MutationObserver((mutations, obs) => {
 observer.observe(document.body, {
     childList: true,
     subtree: true
+});
+// Initialize or update modal when either 'Save' or 'Save and Run' is clicked
+var saveButtons = document.querySelectorAll('.db-split-button button.primary-button, .popover-wrapper .menu-list .db-dropdown-list-item');
+saveButtons.forEach(button => {
+    button.addEventListener('click', initOrUpdateModal);
 });
