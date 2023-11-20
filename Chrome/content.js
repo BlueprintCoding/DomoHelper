@@ -1,4 +1,4 @@
-console.log("Content script loaded");
+console.log("Domo Helper script loaded");
 
 // Function to check if the text area has at least a certain number of words
 function hasMinimumWordCount(text, minWords) {
@@ -54,7 +54,7 @@ function initOrUpdateModal() {
     if (descriptionTextArea) {
         updateModal(descriptionTextArea, minWords);
     } else {
-        console.log("Required elements not found");
+        //console.log("Required elements not found");
     }
 }
 
@@ -125,22 +125,27 @@ chrome.storage.local.get('hideBuzz', function(result) {
     toggleBuzzVisibility(result.hideBuzz);
 });
 
-// Combined MutationObserver for both modal and Buzz elements
+
+// Combined MutationObserver for modal, Buzz elements, and search input field
 const combinedObserver = new MutationObserver(function(mutations) {
     mutations.forEach(function(mutation) {
         if (mutation.addedNodes.length) {
             mutation.addedNodes.forEach((node) => {
+                // Ensure node is an Element
+                if (node.nodeType !== Node.ELEMENT_NODE) {
+                    return;
+                }
+
                 // Check for modal
-                if (node.nodeType === Node.ELEMENT_NODE && 
-                    (node.matches('.modal') || node.querySelector('.modal'))) {
-                    console.log("Modal opened.");
+                if (node.matches('.modal') || node.querySelector('.modal')) {
                     initOrUpdateModal();
                 }
-            });
 
-            // Check for Buzz elements
-            chrome.storage.local.get('hideBuzz', function(result) {
-                toggleBuzzVisibility(result.hideBuzz);
+                // Check for Buzz elements
+                chrome.storage.local.get('hideBuzz', function(result) {
+                    toggleBuzzVisibility(result.hideBuzz);
+                });
+
             });
         }
     });
