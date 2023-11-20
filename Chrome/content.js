@@ -98,10 +98,21 @@ saveButtons.forEach(button => {
 function toggleBuzzVisibility(hideBuzz) {
     const buzzButton = document.getElementById('BuzzAnchor');
     const buzzContainer = document.querySelector('buzz-container');
+    
+    // Targeting the anchor element that contains the Buzz icon and text
+    const buzzNavOption = document.querySelector('.AppNavigationTile_linkContainer_cNQ6U[href="/buzz"]');
 
-    if (buzzButton) buzzButton.style.display = hideBuzz ? 'none' : '';
-    if (buzzContainer) buzzContainer.style.display = hideBuzz ? 'none' : '';
+    if (buzzNavOption) {
+        buzzNavOption.style.display = hideBuzz ? 'none' : '';
+    }
+    if (buzzButton) {
+        buzzButton.style.display = hideBuzz ? 'none' : '';
+    }
+    if (buzzContainer) {
+        buzzContainer.style.display = hideBuzz ? 'none' : '';
+    }
 }
+
 
 // Listening for messages from the popup script and checking the initial state of the "Hide Buzz" setting
 chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
@@ -137,3 +148,4 @@ const combinedObserver = new MutationObserver(function(mutations) {
 
 // Start observing the document body for added nodes
 combinedObserver.observe(document.body, { childList: true, subtree: true });
+
