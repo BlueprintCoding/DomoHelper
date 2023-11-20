@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Domo Helper",
-    "version": "1.0",
+    "version": "1.1",
     "description": "Disables the Magic ETL and SQL ETL save button in Domo until a version description is entered.",
     "permissions": [
         "activeTab",
@@ -24,7 +24,6 @@
     ],
     "author": "Blueprint Coding",
     "homepage_url": "https://blueprintcoders.com/",
-    "license": "All Rights Reserved",
     "browser_specific_settings": {
         "gecko": {
             "id": "DomoHelper@blueprintcoders.com"
