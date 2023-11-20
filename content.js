@@ -118,3 +118,4 @@ var saveButtons = document.querySelectorAll('.db-split-button button.primary-but
 saveButtons.forEach(button => {
     button.addEventListener('click', initOrUpdateModal);
 });
+
