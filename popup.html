@@ -27,7 +27,6 @@
         }
         label {
             margin-bottom: 5px;
-            
         }
         input[type="number"] {
             border: 1px solid var(--secondary-color);
@@ -36,44 +35,68 @@
             background-color: var(--background-dark);
             color: var(--text-color-dark);
             text-align: center;
-            
         }
-        #wordCount {
-            margin-top: 3px;
-            width:100%;
-        }
+
         .header {
             text-align: center;
         }
-
         .header img {
-            width:60px;
+            width: 60px;
         }
-
         .header h1 {
             margin: 0;
         }
-
+         h3 {
+            margin: 0;
+            margin-block-start: 0;
+            margin-block-end: 0;
+        }
         .authorNote {
             text-align: center;
             font-size: .7em;
             margin: 0;
+            padding-top: 3px;
+        }
+        .full-text-settings, .version-notes-settings {
+            border: 1px solid rgb(131, 131, 131);
+            border-radius: 5px;
+            padding:5px;
+        }
+        
+
+        #wordCount {
+            margin-top: 3px;
+            width: 90%;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header"><img src="icons/icon-128.png"><h1>Domo Helper</h1></div>
-        <div>
-            <input type="checkbox" id="toggleFunctionality" checked>
-            <label for="toggleFunctionality">Force Version Notes on Magic and SQL Flows</label>
+        <p class="authorNote">You may need to refresh the page if you changed the settings on another tab.</p>
+        <div class="full-text-settings">
+            <h3>Full Text Pop-Up Settings</h3>
+            <div><hr>
+            <input type="checkbox" id="toggleFunctionality">
+            <label for="toggleFunctionality">Enable Full Text Pop Up Feature<p class="authorNote">(this prevents data drill as well)</p></label>
+        </div><div><hr>
+            <input type="checkbox" id="toggleRemoveLinks">
+            <label for="toggleRemoveLinks">Remove Links from rows with no full text<p class="authorNote">(required a page refresh when turned off)</p></label>
         </div>
-        <div>
+    </div>
+    <div class="version-notes-settings">
+    <h3>Force Version Notes Settings</h3>
+        <div><hr>
+            <input type="checkbox" id="toggleVersionNotes">
+            <label for="toggleVersionNotes">Force Version Notes on Magic and SQL Flows</label>
+        </div>
+        <div><hr>
             <label id="wordCountLabel" for="wordCount">Minimum Version Word Count:</label>
             <input type="number" id="wordCount" min="1" value="5">
         </div>
         <p class="authorNote">Can't stop being lazy and keep skipping adding version notes to your ETLs? Me too, that's why I made this extension to force you to add a note before saving.</p>
     </div>
+</div>
     <script src="popup.js"></script>
 </body>
 </html>

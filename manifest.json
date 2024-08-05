@@ -6,8 +6,13 @@
     "permissions": [
         "activeTab",
         "storage",
-        "tabs"
+        "tabs",
+        "scripting"
     ],
+    "host_permissions": ["<all_urls>"],
+    "background": {
+        "service_worker": "background.js"
+    },
     "action": {
         "default_popup": "popup.html",
         "default_icon": {
@@ -17,16 +22,18 @@
     },
     "content_scripts": [
         {
-            "matches": ["*://*.domo.com/datacenter/dataflows/*/graph", "*://*.domo.com/datacenter/dataflows/*/author"],
-            "js": ["content.js"],
-            "run_at": "document_end"
+            "matches": [
+                "*://*.domo.com/datacenter/dataflows/*/graph",
+                "*://*.domo.com/datacenter/dataflows/*/author",
+                "*://*.domo.com/page/*"
+            ],
+            "js": [
+                "jquery-3.7.1.min.js",
+                "content.js"
+            ],
+            "run_at": "document_idle"
         }
     ],
     "author": "Blueprint Coding",
-    "homepage_url": "https://blueprintcoders.com/",
-    "browser_specific_settings": {
-        "gecko": {
-            "id": "DomoHelper@blueprintcoders.com"
-        }
-    }
+    "homepage_url": "https://blueprintcoders.com/"
 }
