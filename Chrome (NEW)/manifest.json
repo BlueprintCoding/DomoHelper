@@ -7,7 +7,10 @@
         "activeTab",
         "storage",
         "tabs",
-        "scripting"
+        "scripting",
+        "storage",
+        "clipboardRead",
+        "clipboardWrite"
     ],
     "host_permissions": ["<all_urls>"],
     "background": {
@@ -34,7 +37,17 @@
             "run_at": "document_idle"
         }
     ],
+    "web_accessible_resources": [
+      {
+        "resources": [
+          "css/dh-graph-style.css",
+          "css/dh-page-style.css"
+        ],
+        "matches": [
+          "*://*.domo.com/*"
+        ]
+      }
+    ],
     "author": "Blueprint Coding",
     "homepage_url": "https://blueprintcoders.com/"
-
 }

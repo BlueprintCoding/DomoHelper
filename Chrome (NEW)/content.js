@@ -6,83 +6,15 @@ $(document).ready(function() {
     const isGraph = url.endsWith('graph');
     const isAuthor = url.includes('author');
     console.log(isAuthor);
+    
     if (isPage) {
-        // Append the modal HTML to the body
-        $('head').append(`
-            <style>
-                .modal-dialog-centered {
-                    align-items: center;
-                    justify-content: center;
-                    position: absolute;
-                    z-index: 99999;
-                    top: 40%;
-                    left: 50%;
-                    transform: translate(-50%, -50%);
-                    background: white;
-                    width: 50%;
-                    margin: 0 auto;                    
-                    box-shadow: 0 4px 12px rgba(0, 0, 0, .1);
-                    border-radius: 3px 3px 3px 3px;
-                }
-                .modal-custom {
-                    display: none;
-                    font-family: Open Sans, Helvetica Neue, Arial, Helvetica, sans-serif;
-                }
-                .modal-fade {
-                    z-index: 2000; 
-                    display: none;
-                    align-items: center;
-                    background-color: rgba(51, 51, 51, .5);
-                    background-color: rgba(var(--colorGray1_raw), .5);
-                    height: 100%;
-                    justify-content: center;
-                    left: 0;
-                    position: fixed;
-                    top: 0;
-                    width: 100%;
-                }
-                .modal-header {
-                    border-bottom: 1px solid rgba(0, 0, 0, .1);
-                    border-top: 8px solid rgb(153 204 238);
-                    border-radius: 3px 3px 0 0;
-                }
-                .modal-title {
-                    font-size: 20px;
-                    font-weight: 600;
-                    color: rgba(0, 0, 0, .8);
-                    padding: 22px 52px 16px 24px;
-                    margin-top:0px
-                }
-                .authorNote {
-                    text-align: left;
-                    font-size: .7em;
-                    margin: 0;
-                    padding-top: 5px;
-                    opacity: 70%;
-                }
-                .modal-footer {
-                    align-items: center;
-                    box-sizing: border-box;
-                    display: flex;
-                    flex-shrink: 0;
-                    height: 40px;
-                    justify-content: flex-end;
-                    padding-right: 24px;
-                    padding-bottom: 24px;
-                    padding-top: 50px;
-                }
-                .footnote {
-                    text-align: left;
-                }
-                .modal-body {
-                    padding: 24px 24px 2px 24px;
-                    min-height: 50px;
-                }
-                .details-landing {
-                    resize: none;
-                }
-            </style>
-        `);
+        // Existing modal for Full Text Value
+    // Append the MAGIC ETL RECIPE modal HTML to the body
+    const CSSPageLink = document.createElement('link');
+    CSSPageLink.rel = 'stylesheet';
+    CSSPageLink.type = 'text/css';
+    CSSPageLink.href = chrome.runtime.getURL('css/dh-page-style.css');
+    document.head.appendChild(CSSPageLink);
 
         $('body').append(`
             <div class="modal fade modal-custom" id="fontColorModal" tabindex="-1" role="dialog" aria-labelledby="fontColorModalLabel" aria-hidden="true">
@@ -109,6 +41,7 @@ $(document).ready(function() {
             </div>
             <div class="modal-fade" id="modalBackground" role="presentation"></div>
         `);
+
 
         // Copy to Clipboard functionality
         $(document).on("click", "#copyToClipboardButton", function() {
@@ -169,13 +102,278 @@ $(document).ready(function() {
         });
     }
 
-    // Default settings
+    // Append Magic ETL Recipes button and modal for Graph
+    if (isGraph) {
+    // Append the MAGIC ETL RECIPE modal HTML to the body
+    const CSSGraphLink = document.createElement('link');
+    CSSGraphLink.rel = 'stylesheet';
+    CSSGraphLink.type = 'text/css';
+    CSSGraphLink.href = chrome.runtime.getURL('css/dh-graph-style.css');
+    document.head.appendChild(CSSGraphLink);
+    
+        $('body').append(`
+            <div class="modal fade modal-custom" id="saveRecipeModal" tabindex="-1" role="dialog" aria-labelledby="saveRecipeModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered" role="document">
+                    <div class="modal-content">
+                        <button id="save-recipe-modal-close-button" class="db-text-button Modal-module_closeX__UCijY Button-module_button__7BLGt Button-module_default__utLb- Button-module_text__unL1r" type="button" aria-label="Close dialog">
+                            <span class="Button-module_content__b7-cz">
+                                <i role="presentation" class="db-icon icon-x md"></i>
+                            </span>
+                        </button>
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="saveRecipeModalLabel">Save Magic ETL Recipe</h5>
+                        </div>
+                        <div class="modal-body">
+                            <label for="recipeTitle">Title:</label>
+                            <input type="text" id="recipeTitle" class="Textarea-module_textarea__Etl2x">
+                            <label for="recipeDescription">Description:</label>
+                            <textarea id="recipeDescription" class="Textarea-module_textarea__Etl2x"></textarea>
+                            <label for="recipePreview">Recipe Preview:</label>
+                            <textarea readonly id="recipePreview" class="Textarea-module_textarea__Etl2x"></textarea>
+                            <p class="authorNote footnote">Magic ETL Recipes added by Domo Helper Browser Extension.</p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="db-text-button Button-module_button__7BLGt Button-module_default__utLb- Button-module_raised__IpSHu" id="closeSaveRecipeModalButton">Close</button>
+                            <button type="button" class="db-text-button Button-module_button__7BLGt Button-module_primary__TrzCx  Button-module_raised__IpSHu" id="saveRecipeButton">Save</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-fade" id="modalBackground" role="presentation"></div>
+        `);
+
+// Append Magic ETL Recipes button and modal
+$('body').append(`
+    <div class="modal fade modal-custom" id="viewRecipesModal" tabindex="-1" role="dialog" aria-labelledby="viewRecipesModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered-recipes" role="document">
+            <div class="modal-content">
+                <button id="view-recipes-modal-close-button" class="db-text-button Modal-module_closeX__UCijY Button-module_button__7BLGt Button-module_default__utLb- Button-module_text__unL1r" type="button" aria-label="Close dialog">
+                    <span class="Button-module_content__b7-cz">
+                        <i role="presentation" class="db-icon icon-x md"></i>
+                    </span>
+                </button>
+                <div class="modal-header">
+                    <h5 class="modal-title" id="viewRecipesModalLabel">Magic ETL Recipes</h5>
+                    <p class="modal-title-desc">When you click insert, Domo Helper will attempt to scroll to the newly added tiles, Domo usually adds them to the very bottom of the screen inline vertically of where they originally copied from. If your ETL is very large you may need to scroll down a little.</p>
+                </div>
+                <div class="modal-body modal-body-scrollable" id="recipesList">
+                    <!-- Recipes will be listed here -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="db-text-button Button-module_button__7BLGt Button-module_primary__TrzCx Button-module_raised__IpSHu" id="closeViewRecipesModalButton">Close</button>
+                </div>
+                <p class="authorNote footnote">Magic ETL Recipes created by Domo Helper Browser Extension.</p>
+
+            </div>
+        </div>
+    </div>
+    <div class="modal-fade" id="modalBackgroundViewRecipes" role="presentation"></div>
+`);
+
+
+// Event listener to open Magic ETL Recipes modal
+$(document).off("click", "#openMagicETLRecipes"); // Remove any existing event listener
+$(document).on("click", "#openMagicETLRecipes", function() {
+    console.log('Opening Magic ETL Recipe List');
+    $('#recipesList').empty(); // Clear previous list
+    chrome.storage.local.get(['MagicETLRecipes'], function(result) {
+        const recipes = result.MagicETLRecipes || {};
+
+        // Convert recipes object to an array and sort by timestamp
+        const sortedRecipes = Object.values(recipes).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+        sortedRecipes.forEach(recipe => {
+            // Check if the recipe is already appended
+            if ($(`#recipesList .recipe-item[data-title="${recipe.title}"]`).length === 0) {
+                $('#recipesList').append(`
+                    <div class="recipe-item" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;" data-title="${recipe.title}">
+                        <div style="display: flex; align-items: center;">
+                            <button class="db-text-button Button-module_button__7BLGt Button-module_primary__TrzCx Button-module_raised__IpSHu insert-recipe-button" data-title="${recipe.title}">Insert</button>
+                            <div style="margin-left: 10px;">
+                                <h5 style="margin: 0;">${recipe.title}</h5>
+                                <p style="margin: 0;">${recipe.description}</p>
+                            </div>
+                        </div>
+                        <div>
+                            <button class="db-text-button Button-module_button__7BLGt Button-module_default__utLb- Button-module_raised__IpSHu delete-recipe-button" data-title="${recipe.title}">Delete</button>
+                        </div>
+                    </div>
+                `);
+            }
+        });
+
+        // Ensure the "Delete All Recipes" button is only appended once
+        if ($('#recipesList').find('.delete-all-recipes-button').length === 0) {
+            $('#recipesList').append(`
+                <div style="display: flex; justify-content: flex-end; margin-top: 20px;">
+                    <button class="db-text-button Button-module_button__7BLGt Button-module_default__utLb- Button-module_raised__IpSHu delete-all-recipes-button">Delete All Recipes</button>
+                </div>
+            `);
+        }
+        $('#viewRecipesModal').show();
+        $('#modalBackgroundViewRecipes').show();
+    });
+});
+
+// Event listener to insert recipe and copy JSON to clipboard
+$(document).off("click", ".insert-recipe-button"); // Remove any existing event listener
+$(document).on("click", ".insert-recipe-button", async function(event) {
+    event.stopImmediatePropagation(); // Prevent the event from bubbling up
+    const recipeTitle = $(this).data("title");
+
+    chrome.storage.local.get(['MagicETLRecipes'], async function(result) {
+        const recipes = result.MagicETLRecipes || {};
+        const recipeData = recipes[recipeTitle];
+
+        if (recipeData && recipeData.recipe) {
+            let jsonData = JSON.parse(JSON.stringify(recipeData.recipe));
+            if (jsonData.data && jsonData.data.length > 0 && jsonData.data[0].name) {
+                jsonData.data[0].name += " - AB-DH";
+            }
+            const recipeJSON = JSON.stringify(jsonData, null, 2);
+
+            try {
+                await navigator.clipboard.writeText(recipeJSON);
+                console.log('Recipe JSON copied to clipboard');
+
+                $('#viewRecipesModal').hide();
+                $('#modalBackgroundViewRecipes').hide();
+
+                // Wait for the paste command to execute
+                setTimeout(() => {
+                    document.execCommand('paste');
+                    // console.log('Executed paste command');
+
+                    // Mutation observer to find the newly added node
+                    const observer2 = new MutationObserver((mutations) => {
+                        mutations.forEach((mutation) => {
+                            mutation.addedNodes.forEach((node) => {
+                                // console.log('Node added:', node);
+                                if (node.querySelector && node.querySelector(".DfNode_canvasNodeContainer_QeMZJ")) {
+                                    const newNode = node.querySelector(".DfNode_actionName_JU0bL");
+                                    if (newNode && newNode.textContent.includes(" - AB-DH")) {
+                                        // console.log('FOUND NODE:', newNode.textContent);
+                                        const nodeRect = newNode.getBoundingClientRect();
+                                        const container = document.querySelector(".DfScroller_container_BrOZc");
+                                        const containerRect = container.getBoundingClientRect();
+
+                                        // Scroll the container to the position of the new node
+                                        container.scrollTop += (nodeRect.top - containerRect.top) - container.clientHeight / 2 + newNode.clientHeight / 2 + 25;
+                                        container.scrollLeft += (nodeRect.left - containerRect.left) - container.clientWidth / 2 + newNode.clientWidth / 2;
+
+                                        newNode.click();
+                                        
+
+                                        async function addMenuSleep() {
+                                            console.log("adding sidebar again")
+                                            await sleep(250);
+                                        addDomoHelperMenu();
+                                        }
+
+                                        addMenuSleep();
+
+                                        // Disconnect observer once we find the new node
+                                        observer2.disconnect();
+                                    } else {
+                                        // console.log('Node not found yet or does not match:', newNode ? newNode.textContent : 'No newNode');
+                                    }
+                                }
+                            });
+                        });
+                    });
+
+                    // Start observing the document body for new nodes
+                    observer2.observe(document.body, {
+                        childList: true,
+                        subtree: true
+                    });
+                }, 50); // Increased timeout to ensure paste operation completes
+
+            } catch (err) {
+                console.error('Could not copy text: ', err);
+            }
+        }
+    });
+});
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+
+// Event listener for deleting a recipe
+$(document).off("click", ".delete-recipe-button"); // Remove any existing event listener
+$(document).on("click", ".delete-recipe-button", function(event) {
+    event.stopImmediatePropagation(); // Prevent the event from bubbling up
+    const recipeTitle = $(this).data("title");
+    if (confirm("Are you sure you want to delete this recipe? This is permanent.")) {
+        chrome.storage.local.get(['MagicETLRecipes'], function(result) {
+            const recipes = result.MagicETLRecipes || {};
+            delete recipes[recipeTitle];
+            chrome.storage.local.set({ MagicETLRecipes: recipes }, function() {
+                if (chrome.runtime.lastError) {
+                    console.error('Error deleting from local storage:', chrome.runtime.lastError);
+                } else {
+                    console.log('Magic ETL Recipe deleted successfully!', recipes);
+                    $(`button[data-title="${recipeTitle}"]`).closest('.recipe-item').remove();
+                }
+            });
+        });
+    }
+});
+
+// Event listener for deleting all recipes
+$(document).off("click", ".delete-all-recipes-button"); // Remove any existing event listener
+$(document).on("click", ".delete-all-recipes-button", function(event) {
+    event.stopImmediatePropagation(); // Prevent the event from bubbling up
+    if (confirm("Are you sure you want to delete all recipes? This is permanent.")) {
+        chrome.storage.local.set({ MagicETLRecipes: {} }, function() {
+            if (chrome.runtime.lastError) {
+                console.error('Error deleting all recipes from local storage:', chrome.runtime.lastError);
+            } else {
+                console.log('All Magic ETL Recipes deleted successfully!');
+                $('#recipesList').empty();
+            }
+        });
+    }
+});
+
+
+
+    
+            // Event listener for closing the Magic ETL Recipes modal
+            $(document).on("click", "#closeViewRecipesModalButton, #view-recipes-modal-close-button", function() {
+                $('#viewRecipesModal').hide();
+                $('#modalBackgroundViewRecipes').hide();
+            });
+    
+            // Event listener for closing the modal when clicking outside of it
+            $(document).on("click", function(event) {
+                if (!$(event.target).closest(".modal-dialog").length) {
+                    $('#viewRecipesModal').hide();
+                    $('#modalBackgroundViewRecipes').hide();
+                }
+            });
+    
+            // Close the modal when pressing the ESC key
+            $(document).on("keydown", function(event) {
+                if (event.key === "Escape") {
+                    $('#viewRecipesModal').hide();
+                    $('#modalBackgroundViewRecipes').hide();
+                }
+            });
+    
+            // Clear the clipboard
+            function clearClipboard() {
+                navigator.clipboard.writeText('');
+            }
+    }
+
     let enabled = true;
     let removeLinks = false;
     let forceVersionNotes = true;
     let minWords = 5;
 
-    // Function to remove invalid links
     function removeInvalidLinks() {
         if (!removeLinks) return;
 
@@ -197,19 +395,16 @@ $(document).ready(function() {
         });
     }
 
-    // Function to initialize or update the logic for the modal
     function initOrUpdateModal() {
         if (!forceVersionNotes) return;
 
         var descriptionTextArea;
         if (isAuthor) {
-            console.log('is author textarea');
             descriptionTextArea = document.querySelector('textarea');
         } else if (isGraph) {
-            console.log('is graph textarea');
-            descriptionTextArea = document.querySelector('textarea');
+            descriptionTextArea = document.querySelector('.DfSaveModalContentsWithTriggering_textarea_Sp86n');
         } else if (isPage) {
-
+            // handle page specific logic here
         }
         if (descriptionTextArea) {
             updateModal(descriptionTextArea, minWords);
@@ -218,7 +413,6 @@ $(document).ready(function() {
         }
     }
 
-    // Function to update the placeholder text, toggle save button state, and show required word count
     function updateModal(descriptionTextArea, minWords) {
         descriptionTextArea.placeholder = `Version Description (Required)`;
 
@@ -240,7 +434,6 @@ $(document).ready(function() {
         currentToggleSaveButton();
     }
 
-    // Function to create a toggle save button function
     function createToggleSaveButton(descriptionTextArea, minWords) {
         return function() {
             var saveButtons;
@@ -261,7 +454,6 @@ $(document).ready(function() {
         };
     }
 
-    // Function to check if the text area has at least a certain number of words
     function hasMinimumWordCount(text, minWords) {
         return text.split(/\s+/).filter(word => word.length > 0).length >= minWords;
     }
@@ -339,16 +531,181 @@ $(document).ready(function() {
         applySettings(settings);
     });
 
-    const observer = new MutationObserver((mutationsList, observer) => {
-        mutationsList.forEach((mutation) => {
-            if (mutation.addedNodes.length) {
-                mutation.addedNodes.forEach((node) => {
-                    if (node.nodeType === Node.ELEMENT_NODE && 
-                        (node.matches('.modal') || node.querySelector('.modal'))) {
+    async function saveMagicETLRecipe(copyButton) {
+        // Simulate a click on the "Copy to Clipboard" button
+        copyButton.click();
+    
+        // Wait for the clipboard data to be available
+        setTimeout(async () => {
+            try {
+                const text = await navigator.clipboard.readText();
+                let jsonData = JSON.parse(text);
+    
+                // Remove the "data" key within the main object
+                const clearDataValues = (obj) => {
+                    if (Array.isArray(obj)) {
+                        obj.forEach(item => clearDataValues(item));
+                    } else if (typeof obj === "object" && obj !== null) {
+                        for (const key in obj) {
+                            if (key === "data" && Array.isArray(obj[key])) {
+                                obj[key].forEach(subItem => {
+                                    if (subItem.hasOwnProperty("data")) {
+                                        delete subItem.data; // Remove the data key
+                                    }
+                                });
+                            } else if (typeof obj[key] === "object") {
+                                clearDataValues(obj[key]);
+                            }
+                        }
+                    }
+                };
+                clearDataValues(jsonData);
+    
+                // Show the modal and populate the preview
+                $('#recipePreview').val(JSON.stringify(jsonData, null, 2));
+                $('#saveRecipeModal').show();
+                $('#modalBackground').show();
+            } catch (err) {
+                console.error('Failed to read clipboard contents: ', err);
+            }
+        }, 1000); // Adjust the timeout as necessary
+    }
+    
+    
+    function showNotification(message, color) {
+        const notification = document.createElement('div');
+        notification.innerText = message;
+        notification.style.position = 'fixed';
+        notification.style.top = '100px';
+        notification.style.left = '50%';
+        notification.style.transform = 'translateX(-50%)';
+        notification.style.backgroundColor = color;
+        notification.style.color = 'white';
+        notification.style.fontSize = '2em';
+        notification.style.padding = '10px';
+        notification.style.borderRadius = '5px';
+        notification.style.zIndex = '9999';
+        document.body.appendChild(notification);
+    
+        setTimeout(() => {
+            document.body.removeChild(notification);
+        }, 4000);
+    }
+    
+    $(document).off("click", "#saveRecipeButton"); // Remove any existing event listener
+    $(document).on("click", "#saveRecipeButton", function() {
+        const recipeTitle = $('#recipeTitle').val().trim();
+        const recipeDescription = $('#recipeDescription').val().trim();
+        const recipePreview = $('#recipePreview').val();
+    
+        if (recipeTitle && recipeDescription && recipePreview) {
+            const jsonData = JSON.parse(recipePreview);
+            const recipeData = {
+                title: recipeTitle,
+                description: recipeDescription,
+                recipe: jsonData,
+                timestamp: new Date().toISOString() // Add timestamp here
+            };
+    
+            // Save to local storage of the extension under "MagicETLRecipes" key
+            chrome.storage.local.get(['MagicETLRecipes'], function(result) {
+                const recipes = result.MagicETLRecipes || {};
+                recipes[recipeTitle] = recipeData;
+                chrome.storage.local.set({ MagicETLRecipes: recipes }, function() {
+                    if (chrome.runtime.lastError) {
+                        console.error('Error saving to local storage:', chrome.runtime.lastError);
+                    } else {
+                        console.log('Magic ETL Recipe saved successfully!', recipes);
+                        showNotification('Magic ETL Recipe saved successfully!', '#4CAF50');
+                        $('#saveRecipeModal').hide();
+                        $('#modalBackground').hide();
+                        clearModalContent();
+                        clearClipboard();
+                    }
+                });
+            });
+        } else {
+            showNotification('Please provide a title and description', '#ed3737');
+        }
+    });
+    
+    
+    function clearModalContent() {
+        $('#recipeTitle').val('');
+        $('#recipeDescription').val('');
+        $('#recipePreview').val('');
+    }
+    
+    // Event listener for closing the modal
+    $(document).off("click", "#closeSaveRecipeModalButton, #save-recipe-modal-close-button"); // Remove any existing event listener
+    $(document).on("click", "#closeSaveRecipeModalButton, #save-recipe-modal-close-button", function() {
+        $('#saveRecipeModal').hide();
+        $('#modalBackground').hide();
+        clearModalContent();
+    });
+    
+    // Event listener for closing the modal when clicking outside of it
+    $(document).on("click", function(event) {
+        if (!$(event.target).closest(".modal-dialog").length) {
+            $('#saveRecipeModal').hide();
+            $('#modalBackground').hide();
+        }
+    });
+
+    const newMenuItem = `
+    <div data-testid="domo-helper-menu">
+    <div class="DfCategorySlideOut_titleContainer_iMZJF"><div class="display-flex">
+        <span class="DfCategorySlideOut_title_oQl50">Domo Helper</span>
+        </div>
+        <i role="presentation" class="db-icon icon-caret-right md DfCategorySlideOut_arrow_ngvGU DfCategorySlideOut_arrowOpen_UEMpn"></i>
+    </div>
+    <div class="DfCategories_nodePosition_Fs0hR">
+        <div aria-describedby="useUniqueIdMagicETLRecipes">
+            <div id="openMagicETLRecipes" class="DfSidebarNode_container_WZeya">
+                <div class="DfNode_node_LOlFy DfSidebarNode_sidebarNode_CxHrg">
+                    <i role="presentation"  class="db-icon icon-magic lg DfNode_actionIcon_CtVo9 DfNode_iconSize_oxwhR"></i>
+                </div>
+                <div class="DfNode_actionName_JU0bL DfSidebarNode_sidebarActionName_bWCLl">
+                    <span class="position-relative" >Magic ETL Recipes</span>
+                </div>
+            </div>
+        </div>
+        <div role="tooltip" class="Tooltip-module_srOnly__V-ZI0" id="useUniqueIdMagicETLRecipes">
+            <div><div>View and insert Magic ETL Recipes.</div></div>
+        </div>
+    </div>
+    </div>
+`;
+
+
+let isMenuItemAdded = false;
+
+function addDomoHelperMenu() {
+    if (!isMenuItemAdded && $('.DfSidebar_sidebar_hiBmc').last().find("[data-testid='domo-helper-menu']").length === 0) {
+        isMenuItemAdded = true;
+        $('.DfSidebar_sidebar_hiBmc').last().find("[data-testid='performance']").append(newMenuItem);
+    }
+}
+
+function removeDomoHelperMenu() {
+    isMenuItemAdded = false;
+    console.log('side bar menu removed')
+    $('.DfSidebar_sidebar_hiBmc').last().find("[data-testid='domo-helper-menu']").remove();
+        $('.DfSidebar_sidebar_hiBmc').last().find("[data-testid='performance']").append(newMenuItem);
+}
+    
+const observer = new MutationObserver((mutationsList) => {
+    mutationsList.forEach((mutation) => {
+        if (mutation.addedNodes.length || mutation.removedNodes.length) {
+            mutation.addedNodes.forEach((node) => {
+                if (node.nodeType === Node.ELEMENT_NODE) {
+                    // Check for modals
+                    if (node.matches('.modal') || node.querySelector('.modal')) {
                         console.log("SQL Save or Save and Run modal detected.");
                         setTimeout(initOrUpdateModal, 100);
                     }
-                    if (node.nodeType === Node.ELEMENT_NODE && node.matches('.kpi_chart, .kpi_chart *')) {
+                    // Check for KPI chart
+                    if (node.matches('.kpi_chart, .kpi_chart *')) {
                         console.log("KPI chart added.");
                         if (removeLinks) {
                             removeInvalidLinks();
@@ -359,22 +716,93 @@ $(document).ready(function() {
                             resetDataDrillAttributes();
                         }
                     }
-                    if (node.nodeType === Node.ELEMENT_NODE && 
-                        (node.matches('header.db-text-display-4.ModalHeader-module_container__DzXPX') ||
-                        node.querySelector('header.db-text-display-4.ModalHeader-module_container__DzXPX'))) {
+                    if (node.matches('.DfCategorySlideOut_title_oQl50') || node.querySelector('.DfCategorySlideOut_title_oQl50')) {
+                        console.log('found good sidebar');
+                        async function addMenuSleep() {
+                            console.log("adding sidebar again")
+                            await sleep(250);
+                        addDomoHelperMenu();
+                        }
+                        
+                        addMenuSleep();
+                    }
+                    
+                    mutation.removedNodes.forEach((node) => {
+                        if (node.nodeType === Node.ELEMENT_NODE) {
+                            // Check for sidebar removal
+                            if (node.matches('.DfSidebar_sidebar_hiBmc') || node.querySelector('.DfSidebar_sidebar_hiBmc')) {
+                                if (!node.matches('.DfCategorySlideOut_title_oQl50') || !node.querySelector('.DfCategorySlideOut_title_oQl50')) {
+                                    async function addMenuSleep() {
+                                        await sleep(250);
+                                    removeDomoHelperMenu();
+                                    }
+                                    
+                                    addMenuSleep();
+                                }
+                            }
+                        }
+                    });
+
+                    // Check for ETL Save or Save and Run modal
+                    if (node.matches('header.db-text-display-4.ModalHeader-module_container__DzXPX') ||
+                        node.querySelector('header.db-text-display-4.ModalHeader-module_container__DzXPX')) {
                         console.log("ETL Save or Save and Run modal detected.");
                         setTimeout(initOrUpdateModal, 100);
                     }
-                });
-            }
-        });
-    });
+                    // Add "Save Magic ETL Recipe" button below "Copy to Clipboard" button
+                    if (node.matches('.DfSidebar_multiSelectButtonContainer_IzWd7') || node.querySelector('.DfSidebar_multiSelectButtonContainer_IzWd7')) {
+                        const copyButton = Array.from(document.querySelectorAll('.DfSidebar_buttonLabel_aNXwP')).find(el => el.textContent.includes('Copy to Clipboard'));
+                        console.log(copyButton);
+                        removeDomoHelperMenu();
+                        if (copyButton && !document.getElementById('DH-Magic-Recipe-cont')) {
+                            // Create the new button
+                            const saveButton = document.createElement('button');
+                            saveButton.className = 'db-text-button DfSidebar_multiSelectButton_zC_oK Button-module_button__7BLGt Button-module_default__utLb- Button-module_flat__aBcd9';
+                            saveButton.id = 'DH-Magic-Recipe-cont';
+                            saveButton.type = 'button';
 
+                            // Create the inner HTML of the button
+                            saveButton.innerHTML = `
+                                <span id="DH-Magic-Recipe" class="Button-module_content__b7-cz DfSidebar_content_BdbcF">
+                                    <i role="presentation" class="icon-magic lg DfSidebar_icon_qq7Vz"></i>
+                                    <div class="DfSidebar_buttonLabel_aNXwP">Save Magic ETL Recipe</div>
+                                </span>
+                            `;
+
+                            // Append the button below the "Copy to Clipboard" button
+                            copyButton.closest('.DfSidebar_multiSelectButtonContainer_IzWd7').insertAdjacentElement('afterend', saveButton);
+
+                            // Add a click event listener to the new button
+                            saveButton.addEventListener('click', function() {
+                                saveMagicETLRecipe(copyButton);
+                            });
+                        }
+                    }
+                }
+            });
+
+            mutation.removedNodes.forEach((node) => {
+                if (node.nodeType === Node.ELEMENT_NODE) {
+                    // Remove "Save Magic ETL Recipe" button if "Copy to Clipboard" button is removed
+                    const copyButton = Array.from(document.querySelectorAll('.DfSidebar_buttonLabel_aNXwP')).find(el => el.textContent.includes('Copy to Clipboard'));
+                    if (!copyButton) {
+                        const saveButtonmg = document.getElementById('DH-Magic-Recipe-cont');
+                        if (saveButtonmg) {
+                            saveButtonmg.remove();
+                        }
+                    }
+                }
+            });
+        }
+    });
+});
+
+        
     observer.observe(document.body, {
         childList: true,
         subtree: true
     });
-
+    
     if (isPage) {
         $(document).on("click", ".kpi-details .kpi-content .kpiimage table tr td a, .kpi-details .kpicontent .kpiimage table tr td a", function(event) {
             if (!enabled) {
