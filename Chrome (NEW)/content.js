@@ -1,11 +1,17 @@
-console.log("Content script loaded");
+// Log Content Script only after the page is fully loaded
+document.onreadystatechange = function () {
+        if (document.readyState == "complete") {
+    console.log("Page Loaded & Domo Helper Active");
+        }
+    }
 
 $(document).ready(function() {
+
+
     const url = window.location.href;
     const isPage = url.includes('/page/');
     const isGraph = url.endsWith('graph');
     const isAuthor = url.includes('author');
-    console.log(isAuthor);
     
     if (isPage) {
         // Existing modal for Full Text Value
@@ -262,11 +268,9 @@ $(document).on("click", ".insert-recipe-button", async function(event) {
                                         container.scrollLeft += (nodeRect.left - containerRect.left) - container.clientWidth / 2 + newNode.clientWidth / 2;
 
                                         newNode.click();
-                                        
 
                                         async function addMenuSleep() {
-                                            console.log("adding sidebar again")
-                                            await sleep(250);
+                                        await sleep(0);
                                         addDomoHelperMenu();
                                         }
 
@@ -409,7 +413,7 @@ $(document).on("click", ".delete-all-recipes-button", function(event) {
         if (descriptionTextArea) {
             updateModal(descriptionTextArea, minWords);
         } else {
-            console.log("Required elements not found");
+            // console.log("Required elements not found");
         }
     }
 
@@ -689,119 +693,137 @@ function addDomoHelperMenu() {
 
 function removeDomoHelperMenu() {
     isMenuItemAdded = false;
-    console.log('side bar menu removed')
     $('.DfSidebar_sidebar_hiBmc').last().find("[data-testid='domo-helper-menu']").remove();
         $('.DfSidebar_sidebar_hiBmc').last().find("[data-testid='performance']").append(newMenuItem);
 }
-    
+
+let modalProcessed = false;
+
 const observer = new MutationObserver((mutationsList) => {
-    mutationsList.forEach((mutation) => {
-        if (mutation.addedNodes.length || mutation.removedNodes.length) {
+    let mainElementFound = document.querySelector('main.app-body.ng-scope[ng-if="!showSaasaasZeroState"][ng-class="{\'app-body-reduced-min-width\': useReducedMinWidth}"]');
+
+    if (!mainElementFound) {
+        mutationsList.forEach((mutation) => {
             mutation.addedNodes.forEach((node) => {
-                if (node.nodeType === Node.ELEMENT_NODE) {
-                    // Check for modals
-                    if (node.matches('.modal') || node.querySelector('.modal')) {
-                        console.log("SQL Save or Save and Run modal detected.");
-                        setTimeout(initOrUpdateModal, 100);
-                    }
-                    // Check for KPI chart
-                    if (node.matches('.kpi_chart, .kpi_chart *')) {
-                        console.log("KPI chart added.");
-                        if (removeLinks) {
-                            removeInvalidLinks();
+                if (node.nodeType === Node.ELEMENT_NODE && node.matches('main.app-body.ng-scope[ng-if="!showSaasaasZeroState"][ng-class="{\'app-body-reduced-min-width\': useReducedMinWidth}"]')) {
+                    mainElementFound = node;
+
+                    observer.disconnect(); // Stop observing once the main element is found
+                }
+            });
+        });
+    }
+
+    if (mainElementFound) {
+        mutationsList.forEach((mutation) => {
+            if (mutation.addedNodes.length || mutation.removedNodes.length) {
+                mutation.addedNodes.forEach((node) => {
+                    if (node.nodeType === Node.ELEMENT_NODE) {
+                        // Check for modals
+                        if ((node.matches('.modal') || node.querySelector('.modal')) && !modalProcessed && isAuthor) {
+                            modalProcessed = true; // Set the flag to true to prevent further processing
+                            console.log("SQL Save or Save and Run modal detected.");
+                            setTimeout(() => {
+                                initOrUpdateModal();
+                                modalProcessed = false; // Reset the flag after processing
+                            }, 100);
                         }
-                        if (enabled) {
-                            modifyDataDrillAttributes();
-                        } else {
-                            resetDataDrillAttributes();
-                        }
-                    }
-                    if (node.matches('.DfCategorySlideOut_title_oQl50') || node.querySelector('.DfCategorySlideOut_title_oQl50')) {
-                        console.log('found good sidebar');
-                        async function addMenuSleep() {
-                            console.log("adding sidebar again")
-                            await sleep(250);
-                        addDomoHelperMenu();
-                        }
-                        
-                        addMenuSleep();
-                    }
-                    
-                    mutation.removedNodes.forEach((node) => {
-                        if (node.nodeType === Node.ELEMENT_NODE) {
-                            // Check for sidebar removal
-                            if (node.matches('.DfSidebar_sidebar_hiBmc') || node.querySelector('.DfSidebar_sidebar_hiBmc')) {
-                                if (!node.matches('.DfCategorySlideOut_title_oQl50') || !node.querySelector('.DfCategorySlideOut_title_oQl50')) {
-                                    async function addMenuSleep() {
-                                        await sleep(250);
-                                    removeDomoHelperMenu();
-                                    }
-                                    
-                                    addMenuSleep();
-                                }
+                        // Check for KPI chart
+                        if (node.matches('.kpi_chart, .kpi_chart *')) {
+                            console.log("KPI chart added.");
+                            if (removeLinks) {
+                                removeInvalidLinks();
+                            }
+                            if (enabled) {
+                                modifyDataDrillAttributes();
+                            } else {
+                                resetDataDrillAttributes();
                             }
                         }
-                    });
+                        if (node.matches('.DfCategorySlideOut_title_oQl50') || node.querySelector('.DfCategorySlideOut_title_oQl50')) {
+                            async function addMenuSleep() {
+                                await sleep(250);
+                                addDomoHelperMenu();
+                            }
 
-                    // Check for ETL Save or Save and Run modal
-                    if (node.matches('header.db-text-display-4.ModalHeader-module_container__DzXPX') ||
-                        node.querySelector('header.db-text-display-4.ModalHeader-module_container__DzXPX')) {
-                        console.log("ETL Save or Save and Run modal detected.");
-                        setTimeout(initOrUpdateModal, 100);
+                            addMenuSleep();
+                        }
+
+                        mutation.removedNodes.forEach((node) => {
+                            if (node.nodeType === Node.ELEMENT_NODE) {
+                                // Check for sidebar removal
+                                if (node.matches('.DfSidebar_sidebar_hiBmc') || node.querySelector('.DfSidebar_sidebar_hiBmc')) {
+                                    if (!node.matches('.DfCategorySlideOut_title_oQl50') || !node.querySelector('.DfCategorySlideOut_title_oQl50')) {
+                                        async function addMenuSleep() {
+                                            await sleep(250);
+                                            removeDomoHelperMenu();
+                                        }
+
+                                        addMenuSleep();
+                                    }
+                                }
+                            }
+                        });
+
+                        // Check for ETL Save or Save and Run modal
+                        if (node.matches('header.db-text-display-4.ModalHeader-module_container__DzXPX') ||
+                            node.querySelector('header.db-text-display-4.ModalHeader-module_container__DzXPX')) {
+                            console.log("ETL Save or Save and Run modal detected.");
+                            setTimeout(initOrUpdateModal, 100);
+                        }
+                        // Add "Save Magic ETL Recipe" button below "Copy to Clipboard" button
+                        if (node.matches('.DfSidebar_multiSelectButtonContainer_IzWd7') || node.querySelector('.DfSidebar_multiSelectButtonContainer_IzWd7')) {
+                            const copyButton = Array.from(document.querySelectorAll('.DfSidebar_buttonLabel_aNXwP')).find(el => el.textContent.includes('Copy to Clipboard'));
+                            removeDomoHelperMenu();
+                            if (copyButton && !document.getElementById('DH-Magic-Recipe-cont')) {
+                                // Create the new button
+                                const saveButton = document.createElement('button');
+                                saveButton.className = 'db-text-button DfSidebar_multiSelectButton_zC_oK Button-module_button__7BLGt Button-module_default__utLb- Button-module_flat__aBcd9';
+                                saveButton.id = 'DH-Magic-Recipe-cont';
+                                saveButton.type = 'button';
+
+                                // Create the inner HTML of the button
+                                saveButton.innerHTML = `
+                                    <span id="DH-Magic-Recipe" class="Button-module_content__b7-cz DfSidebar_content_BdbcF">
+                                        <i role="presentation" class="icon-magic lg DfSidebar_icon_qq7Vz"></i>
+                                        <div class="DfSidebar_buttonLabel_aNXwP">Save Magic ETL Recipe</div>
+                                    </span>
+                                `;
+
+                                // Append the button below the "Copy to Clipboard" button
+                                copyButton.closest('.DfSidebar_multiSelectButtonContainer_IzWd7').insertAdjacentElement('afterend', saveButton);
+
+                                // Add a click event listener to the new button
+                                saveButton.addEventListener('click', function () {
+                                    saveMagicETLRecipe(copyButton);
+                                });
+                            }
+                        }
                     }
-                    // Add "Save Magic ETL Recipe" button below "Copy to Clipboard" button
-                    if (node.matches('.DfSidebar_multiSelectButtonContainer_IzWd7') || node.querySelector('.DfSidebar_multiSelectButtonContainer_IzWd7')) {
+                });
+
+                mutation.removedNodes.forEach((node) => {
+                    if (node.nodeType === Node.ELEMENT_NODE) {
+                        // Remove "Save Magic ETL Recipe" button if "Copy to Clipboard" button is removed
                         const copyButton = Array.from(document.querySelectorAll('.DfSidebar_buttonLabel_aNXwP')).find(el => el.textContent.includes('Copy to Clipboard'));
-                        console.log(copyButton);
-                        removeDomoHelperMenu();
-                        if (copyButton && !document.getElementById('DH-Magic-Recipe-cont')) {
-                            // Create the new button
-                            const saveButton = document.createElement('button');
-                            saveButton.className = 'db-text-button DfSidebar_multiSelectButton_zC_oK Button-module_button__7BLGt Button-module_default__utLb- Button-module_flat__aBcd9';
-                            saveButton.id = 'DH-Magic-Recipe-cont';
-                            saveButton.type = 'button';
-
-                            // Create the inner HTML of the button
-                            saveButton.innerHTML = `
-                                <span id="DH-Magic-Recipe" class="Button-module_content__b7-cz DfSidebar_content_BdbcF">
-                                    <i role="presentation" class="icon-magic lg DfSidebar_icon_qq7Vz"></i>
-                                    <div class="DfSidebar_buttonLabel_aNXwP">Save Magic ETL Recipe</div>
-                                </span>
-                            `;
-
-                            // Append the button below the "Copy to Clipboard" button
-                            copyButton.closest('.DfSidebar_multiSelectButtonContainer_IzWd7').insertAdjacentElement('afterend', saveButton);
-
-                            // Add a click event listener to the new button
-                            saveButton.addEventListener('click', function() {
-                                saveMagicETLRecipe(copyButton);
-                            });
+                        if (!copyButton) {
+                            const saveButtonmg = document.getElementById('DH-Magic-Recipe-cont');
+                            if (saveButtonmg) {
+                                saveButtonmg.remove();
+                            }
                         }
                     }
-                }
-            });
-
-            mutation.removedNodes.forEach((node) => {
-                if (node.nodeType === Node.ELEMENT_NODE) {
-                    // Remove "Save Magic ETL Recipe" button if "Copy to Clipboard" button is removed
-                    const copyButton = Array.from(document.querySelectorAll('.DfSidebar_buttonLabel_aNXwP')).find(el => el.textContent.includes('Copy to Clipboard'));
-                    if (!copyButton) {
-                        const saveButtonmg = document.getElementById('DH-Magic-Recipe-cont');
-                        if (saveButtonmg) {
-                            saveButtonmg.remove();
-                        }
-                    }
-                }
-            });
-        }
-    });
+                });
+            }
+        });
+    }
 });
 
-        
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true
-    });
+observer.observe(document.body, {
+    childList: true,
+    subtree: true
+});
+
     
     if (isPage) {
         $(document).on("click", ".kpi-details .kpi-content .kpiimage table tr td a, .kpi-details .kpicontent .kpiimage table tr td a", function(event) {
