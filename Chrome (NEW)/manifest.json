@@ -12,7 +12,11 @@
         "clipboardRead",
         "clipboardWrite"
     ],
-    "host_permissions": ["<all_urls>"],
+    "host_permissions": [
+        "*://*.domo.com/datacenter/dataflows/*/graph",
+        "*://*.domo.com/datacenter/dataflows/*/author",
+        "*://*.domo.com/page/*"
+    ],
     "background": {
         "service_worker": "background.js"
     },
@@ -38,15 +42,15 @@
         }
     ],
     "web_accessible_resources": [
-      {
-        "resources": [
-          "css/dh-graph-style.css",
-          "css/dh-page-style.css"
-        ],
-        "matches": [
-          "*://*.domo.com/*"
-        ]
-      }
+        {
+            "resources": [
+                "css/dh-graph-style.css",
+                "css/dh-page-style.css"
+            ],
+            "matches": [
+                "*://*.domo.com/*"
+            ]
+        }
     ],
     "author": "Blueprint Coding",
     "homepage_url": "https://blueprintcoders.com/"
