@@ -46,15 +46,87 @@ $(document).ready(function () {
         }
     }
 
+    function removeDomoHelperMenuCleanup() {
+        isMenuItemAdded = false;
+        $('.DfSidebar_sidebar_hiBmc').last().find("[data-testid='domo-helper-menu']").remove();
+    }
+
+    
+    let removeLinks = false;
+    function removeInvalidLinks() {
+        if (!removeLinks) return;
+
+        $("td a[data-drill]").each(function () {
+            var dataDrill = $(this).attr('data-drill');
+            if (dataDrill) {
+                var drillData = JSON.parse(dataDrill.replace(/&quot;/g, '"'));
+                if (drillData.filters && drillData.filters.length > 0) {
+                    var values = drillData.filters[0].values;
+                    if (values && values.length > 0) {
+                        var spanElement = $('<div>').html(values[0]).find('span');
+                        var fontColorValue = spanElement.attr('font-color');
+                        if (fontColorValue === 'NOTEXT') {
+                            $(this).replaceWith(spanElement);
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    
+
+    function cleanupDomoHelper() {
+        console.log("Cleaning up Domo Helper elements...");
+    
+        // Remove modals
+        $('#fontColorModal').remove();
+        $('#saveRecipeModal').remove();
+        $('#viewRecipesModal').remove();
+        
+        // Remove modal backgrounds
+        $('#modalBackground').remove();
+        $('#modalBackgroundViewRecipes').remove();
+    
+        // Remove added CSS
+        $("link[href*='dh-page-style.css']").remove();
+        $("link[href*='dh-graph-style.css']").remove();
+    
+        // Remove Domo Helper Menu
+        removeDomoHelperMenuCleanup();
+    }
+
+    let previousUrl = window.location.href;
+
+const urlChangeObserver = new MutationObserver(() => {
+    const currentUrl = window.location.href;
+    if (currentUrl !== previousUrl) {
+        previousUrl = currentUrl;
+
+        // Recalculate page type flags
+        isPage = currentUrl.includes('/page/');
+        isGraph = currentUrl.endsWith('graph');
+        isAuthor = currentUrl.includes('author');
+
+        // If the new page is not relevant, trigger cleanup
+        if (!isPage && !isGraph && !isAuthor) {
+            cleanupDomoHelper();
+        }
+    }
+});
+
+urlChangeObserver.observe(document.body, { childList: true, subtree: true });
     if (isPage) {
         console.log("Domo Helper - Is Card Page");
     } else if (isGraph) {
         console.log("Domo Helper - Is MagicETL Page");
     } else if (isAuthor) {
         console.log("Domo Helper - Is SQL Page");
-    } else {
+    } else if (!isPage && !isGraph && !isAuthor) {
         console.log("Domo Helper - Non-Relevant Page");
+        cleanupDomoHelper();
     }
+    
 
     if (isPage || isGraph || isAuthor) {
 
@@ -74,28 +146,6 @@ $(document).ready(function () {
             CSSPageLink.type = 'text/css';
             CSSPageLink.href = chrome.runtime.getURL('css/dh-page-style.css');
             document.head.appendChild(CSSPageLink);
-
-            let removeLinks = false;
-            function removeInvalidLinks() {
-                if (!removeLinks) return;
-
-                $("td a[data-drill]").each(function () {
-                    var dataDrill = $(this).attr('data-drill');
-                    if (dataDrill) {
-                        var drillData = JSON.parse(dataDrill.replace(/&quot;/g, '"'));
-                        if (drillData.filters && drillData.filters.length > 0) {
-                            var values = drillData.filters[0].values;
-                            if (values && values.length > 0) {
-                                var spanElement = $('<div>').html(values[0]).find('span');
-                                var fontColorValue = spanElement.attr('font-color');
-                                if (fontColorValue === 'NOTEXT') {
-                                    $(this).replaceWith(spanElement);
-                                }
-                            }
-                        }
-                    }
-                });
-            }
 
             function modifyDataDrillAttributes() {
                 $("td a[data-drill]").each(function () {
@@ -641,6 +691,7 @@ function removeDomoHelperMenu() {
     $('.DfSidebar_sidebar_hiBmc').last().find("[data-testid='domo-helper-menu']").remove();
     $('.DfSidebar_sidebar_hiBmc').last().find("[data-testid='performance']").append(newMenuItem);
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // IS GRAPH / MAGIC ETL PAGES / VERSION FORCING //

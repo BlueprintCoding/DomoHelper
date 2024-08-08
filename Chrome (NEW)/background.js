@@ -1,5 +1,12 @@
+// Function to check if the tab's URL matches the specified domains
+function isDomoDomain(url) {
+    const domoRegex = /^https:\/\/.*\.domo\.com\//;
+    return domoRegex.test(url);
+}
+
+// Listen for tab updates
 chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
-    if (changeInfo.status === 'complete' && /^https/.test(tab.url)) {
+    if (changeInfo.status === 'complete' && isDomoDomain(tab.url)) {
         console.log('Injecting scripts onUpdated:', tab.url);
         chrome.scripting.executeScript({
             target: { tabId: tabId },
@@ -23,9 +30,10 @@ chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
     }
 });
 
+// Listen for tab activation
 chrome.tabs.onActivated.addListener(function(activeInfo) {
     chrome.tabs.get(activeInfo.tabId, function(tab) {
-        if (/^https/.test(tab.url)) {
+        if (isDomoDomain(tab.url)) {
             console.log('Injecting scripts onActivated:', tab.url);
             chrome.scripting.executeScript({
                 target: { tabId: tab.id },

@@ -1,0 +1,7 @@
+Column tracing in Magic ETL. Find which tiles columns are coming from, color marking, search feature.
+
+Tracking what tiles you deleted in Magic ETL.
+GoneButNotForgotten 
+DeleteDetective 
+
+Automatic Version Note Summary
