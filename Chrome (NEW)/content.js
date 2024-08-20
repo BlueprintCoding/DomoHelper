@@ -263,6 +263,88 @@ urlChangeObserver.observe(document.body, { childList: true, subtree: true });
                     $('.modal-backdrop').remove();
                 }
             });
+
+   // Function to initialize the Jump to: functionality and remove badge-content-shield
+   function processNotebookBody(notebookBody) {
+    // console.log('Processing notebookBody:', notebookBody);
+
+    // Find the span element inside the notebookBody that contains "Jump to:"
+    const spanElement = notebookBody.querySelector('span');
+    if (spanElement) {
+        const textContent = spanElement.textContent.trim();
+        // console.log(`Found span with text: "${textContent}"`);
+
+        // Check if the span text starts with "Jump To:"
+        if (textContent.startsWith('Jump to:')) {
+            // console.log(`Found "Jump to:" link in notebookBody: "${textContent}"`);
+
+            // Extract the section name from the "Jump to:" text
+            const sectionName = textContent.replace('Jump to:', '').trim().toUpperCase();
+            // console.log(`Extracted section name: "${sectionName}"`);
+
+            // Remove the badge-content-shield in the parent section
+            const parentSection = notebookBody.closest('section.dm-badge');
+            if (parentSection) {
+                const shieldDiv = parentSection.querySelector('div.badge-content-shield');
+                if (shieldDiv) {
+                    shieldDiv.remove();
+                    // console.log('Removed badge-content-shield div.');
+                }
+            }
+
+            // Add a click event listener to the entire notebookBody
+            notebookBody.addEventListener('click', function() {
+                // console.log(`notebookBody clicked for: "${sectionName}"`);
+
+                // Find the section matching the section name
+                const targetSection = Array.from(document.querySelectorAll('notebook-shim span'))
+                    .find(span => span.textContent.trim().endsWith('SECTION') && span.textContent.trim().toUpperCase().includes(sectionName));
+
+                if (targetSection) {
+                    // console.log(`Matching section found: "${targetSection.textContent.trim()}"`);
+                    // Scroll into view if section found
+                    targetSection.scrollIntoView({ behavior: 'smooth' });
+                    // console.log('Scrolling to section...');
+                } else {
+                    // console.warn(`Section not found for: "${sectionName}"`);
+                }
+            });
+        } else {
+            // console.log(`Skipped notebookBody with span text: "${textContent}"`);
+        }
+    } else {
+        // console.log('No span found in this notebookBody.');
+    }
+}
+
+// Function to setup the observer and continuously monitor for new notebookBody elements
+function observeNotebookBodies() {
+    const observerNB = new MutationObserver((mutations) => {
+        mutations.forEach(mutation => {
+            mutation.addedNodes.forEach(node => {
+                if (node.nodeType === 1 && node.matches('div.notebookBody')) {
+                    // console.log('MutationObserver detected a new notebookBody.');
+                    processNotebookBody(node);
+                } else if (node.nodeType === 1) {
+                    const notebookBodies = node.querySelectorAll('div.notebookBody');
+                    notebookBodies.forEach(nb => {
+                        // console.log('MutationObserver detected a new notebookBody within an added node.');
+                        processNotebookBody(nb);
+                    });
+                }
+            });
+        });
+    });
+
+    // Start observing the body for added nodes
+    observerNB.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
+}
+
+// Initialize the observer
+observeNotebookBodies();
         }
 
 
@@ -907,7 +989,7 @@ const observer = new MutationObserver((mutationsList) => {
                         }
                         // Check for KPI chart
                         if (node.matches('.kpi_chart, .kpi_chart *')) {
-                            console.log("KPI chart added.");
+                            // console.log("KPI chart added.");
                             if (removeLinks) {
                                 removeInvalidLinks();
                             }
