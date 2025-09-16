@@ -4,54 +4,56 @@
     "version": "1.1",
     "description": "Disables the Magic ETL and SQL ETL save button in Domo until a version description is entered.",
     "permissions": [
-        "activeTab",
-        "storage",
-        "tabs",
-        "scripting",
-        "storage",
-        "clipboardRead",
-        "clipboardWrite"
+      "activeTab",
+      "storage",
+      "tabs",
+      "scripting",
+      "clipboardRead",
+      "clipboardWrite"
     ],
     "host_permissions": [
-        "*://*.domo.com/datacenter/dataflows/*/graph",
-        "*://*.domo.com/datacenter/dataflows/*/author",
-        "*://*.domo.com/page/*"
+      "*://*.domo.com/datacenter/dataflows/*/graph",
+      "*://*.domo.com/datacenter/dataflows/*/author",
+      "*://*.domo.com/page/*"
     ],
     "background": {
-        "service_worker": "background.js"
+      "service_worker": "background.js"
     },
     "action": {
-        "default_popup": "popup.html",
-        "default_icon": {
-            "48": "icons/icon-48.png",
-            "128": "icons/icon-128.png"
-        }
+      "default_popup": "popup.html",
+      "default_icon": {
+        "48": "icons/icon-48.png",
+        "128": "icons/icon-128.png"
+      }
     },
     "content_scripts": [
-        {
-            "matches": [
-                "*://*.domo.com/datacenter/dataflows/*/graph",
-                "*://*.domo.com/datacenter/dataflows/*/author",
-                "*://*.domo.com/page/*"
-            ],
-            "js": [
-                "jquery-3.7.1.min.js",
-                "content.js"
-            ],
-            "run_at": "document_idle"
-        }
+      {
+        "matches": [
+          "*://*.domo.com/datacenter/dataflows/*/graph",
+          "*://*.domo.com/datacenter/dataflows/*/author",
+          "*://*.domo.com/page/*"
+        ],
+        "js": [
+          "jquery-3.7.1.min.js",
+          "content/content-main.js"
+        ],
+        "run_at": "document_idle"
+      }
     ],
     "web_accessible_resources": [
-        {
-            "resources": [
-                "css/dh-graph-style.css",
-                "css/dh-page-style.css"
-            ],
-            "matches": [
-                "*://*.domo.com/*"
-            ]
-        }
+      {
+        "resources": [
+          "css/dh-graph-style.css",
+          "css/dh-page-style.css",
+          "css/dh-author-style.css",
+          "content/features/*.js" 
+        ],
+        "matches": [
+          "*://*.domo.com/*"
+        ]
+      }
     ],
     "author": "Blueprint Coding",
     "homepage_url": "https://blueprintcoders.com/"
-}
+  }
+  
