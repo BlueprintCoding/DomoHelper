@@ -34,7 +34,9 @@ const DH = {
     pageJumpTo: null,
     magicRecipes: null,
     graphMenu: null,
-    versionNotes: null
+    versionNotes: null,
+    selectColumnsReorder: null,
+    selectColumnsRename: null
   };
   
   let loadedForThisUrl = false;
@@ -95,6 +97,14 @@ const DH = {
         // Domo Helper menu in sidebar
         featureModules.graphMenu = (await import(chrome.runtime.getURL('content/features/feature-graph-menu.js'))).default;
         featureModules.graphMenu.init({ DH });
+
+        // Select Columns reorder functionality
+        featureModules.selectColumnsReorder = (await import(chrome.runtime.getURL('content/features/feature-select-columns-reorder.js'))).default;
+        featureModules.selectColumnsReorder.init({ DH });
+
+        // Select Columns rename functionality
+        featureModules.selectColumnsRename = (await import(chrome.runtime.getURL('content/features/feature-select-columns-rename.js'))).default;
+        featureModules.selectColumnsRename.init({ DH });
       }
   
       // Version Notes enforcement (applies to SQL Author + Magic ETL Graph)
@@ -114,6 +124,8 @@ const DH = {
         if (featureModules.magicRecipes?.applySettings) featureModules.magicRecipes.applySettings?.(settings);
         if (featureModules.graphMenu?.applySettings) featureModules.graphMenu.applySettings?.(settings);
         if (featureModules.pageJumpTo?.applySettings) featureModules.pageJumpTo.applySettings?.(settings);
+        if (featureModules.selectColumnsReorder?.applySettings) featureModules.selectColumnsReorder.applySettings?.(settings);
+        if (featureModules.selectColumnsRename?.applySettings) featureModules.selectColumnsRename.applySettings?.(settings);
       }
     });
   }
@@ -125,6 +137,8 @@ const DH = {
     featureModules.magicRecipes?.cleanup?.();
     featureModules.graphMenu?.cleanup?.();
     featureModules.versionNotes?.cleanup?.();
+    featureModules.selectColumnsReorder?.cleanup?.();
+    featureModules.selectColumnsRename?.cleanup?.();
   
     // Remove injected CSS
     document.querySelectorAll("link[href*='dh-page-style.css'], link[href*='dh-graph-style.css']").forEach(l => l.remove());

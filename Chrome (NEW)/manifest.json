@@ -9,7 +9,8 @@
       "tabs",
       "scripting",
       "clipboardRead",
-      "clipboardWrite"
+      "clipboardWrite",
+      "debugger"
     ],
     "host_permissions": [
       "*://*.domo.com/datacenter/dataflows/*/graph",
