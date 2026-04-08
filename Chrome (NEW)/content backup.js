@@ -5,12 +5,281 @@ document.onreadystatechange = function () {
     }
 }
 
+// Message listener - MUST be at top level to work on all pages
+chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
+    if (message.type === "clearAnalyzerColumns") {
+        let count = 0;
+        const autoSelectTable = message.autoSelectTable || false;
+        
+        const removeNextColumn = () => {
+            // Re-query for X buttons each time (they change after each removal)
+            const xIcons = document.querySelectorAll('i.icon-x-circle-outline');
+            const xButtons = Array.from(xIcons).map(icon => icon.closest('button')).filter(btn => btn !== null);
+            
+            console.log(`Remaining columns: ${xButtons.length}`);
+            
+            if (xButtons.length === 0) {
+                // All done removing columns
+                if (autoSelectTable) {
+                    console.log(`Auto-selecting table chart type`);
+                    selectTableChartType();
+                }
+                
+                console.log(`Sent response: ${count} columns cleared`);
+                sendResponse({ success: true, count: count });
+                return;
+            }
+            
+            // Always click the first button (since others shift after removal)
+            const xButton = xButtons[0];
+            console.log(`Clicking X button to open popover (${count + 1} of original)`);
+            
+            // Click the X button to open the popover
+            xButton.click();
+            
+            // Wait for popover to appear, then click remove button
+            setTimeout(() => {
+                const removeBtn = document.querySelector('button.remove-button.db-button');
+                if (removeBtn) {
+                    console.log(`Clicking remove column button`);
+                    removeBtn.click();
+                    count++;
+                } else {
+                    console.log(`Could not find remove button`);
+                }
+                
+                // Move to next column with delay
+                setTimeout(removeNextColumn, 300);
+            }, 150);
+        };
+        
+        console.log(`Starting column removal process`);
+        removeNextColumn();
+        
+        return true;
+    } else if (message.type === "settingsChanged") {
+        const event = new CustomEvent('domoHelperSettingsChanged', { detail: message.settings });
+        document.dispatchEvent(event);
+    }
+});
+
+// Helper function to select table chart type
+function selectTableChartType() {
+    // Look for the table chart type element with class containing 'basic-table-small'
+    const tableChartElement = document.querySelector('[data-ui-test-chart-type="badge_basic_table"]');
+    
+    if (tableChartElement) {
+        console.log(`Found table chart type element, clicking it`);
+        tableChartElement.click();
+    } else {
+        console.log(`Could not find table chart type element`);
+    }
+}
+
+// Inject clear button into analyzer page
+function injectClearButton() {
+    // Check if we're on the analyzer page
+    if (!window.location.href.includes('bcpequity.domo.com/analyzer')) {
+        return;
+    }
+    
+    // Find the button container
+    const buttonContainer = document.querySelector('.button-container');
+    if (!buttonContainer) {
+        console.log('Button container not found, will retry...');
+        setTimeout(injectClearButton, 1000);
+        return;
+    }
+    
+    // Check if button already exists
+    if (document.getElementById('dh-clear-analyzer-btn')) {
+        return;
+    }
+    
+    // Create the clear button
+    const clearBtn = document.createElement('button');
+    clearBtn.id = 'dh-clear-analyzer-btn';
+    clearBtn.className = 'feature-ribbon-button db-button';
+    clearBtn.setAttribute('theme', 'default');
+    clearBtn.setAttribute('isicon', '');
+    clearBtn.setAttribute('db-tooltip', 'Clear All Columns');
+    clearBtn.setAttribute('db-tooltip-placement', 'bottom');
+    clearBtn.setAttribute('type', 'button');
+    clearBtn.style.marginRight = '8px';
+    
+    // Create the icon
+    const icon = document.createElement('i');
+    icon.className = 'icon-trash xs';
+    
+    // Add click handler
+    clearBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const confirmed = confirm('Are you sure you want to clear all columns?');
+        if (confirmed) {
+            // Show loading state
+            clearBtn.disabled = true;
+            const originalIcon = icon.cloneNode(true);
+            
+            // Get autoSelectTable setting from chrome storage
+            chrome.storage.local.get(['autoSelectTable'], function(settings) {
+                const autoSelectTable = settings.autoSelectTable || false;
+                
+                // Send message to content script to clear columns
+                let count = 0;
+                
+                const removeNextColumn = () => {
+                    const xIcons = document.querySelectorAll('i.icon-x-circle-outline');
+                    const xButtons = Array.from(xIcons).map(icon => icon.closest('button')).filter(btn => btn !== null);
+                    
+                    console.log(`Remaining columns: ${xButtons.length}`);
+                    
+                    if (xButtons.length === 0) {
+                        // All done removing columns
+                        if (autoSelectTable) {
+                            console.log(`Auto-selecting table chart type`);
+                            selectTableChartType();
+                        }
+                        
+                        clearBtn.disabled = false;
+                        // Restore the icon
+                        clearBtn.innerHTML = '';
+                        clearBtn.appendChild(originalIcon.cloneNode(true));
+                        
+                        if (count > 0) {
+                            alert(`Successfully cleared ${count} column${count !== 1 ? 's' : ''}!`);
+                        } else {
+                            alert('No columns found to clear. The analyzer may already be empty.');
+                        }
+                        return;
+                    }
+                    
+                    const xButton = xButtons[0];
+                    console.log(`Clicking X button to open popover (${count + 1} of original)`);
+                    
+                    xButton.click();
+                    
+                    setTimeout(() => {
+                        const removeBtn = document.querySelector('button.remove-button.db-button');
+                        if (removeBtn) {
+                            console.log(`Clicking remove column button`);
+                            removeBtn.click();
+                            count++;
+                        }
+                        
+                        setTimeout(removeNextColumn, 300);
+                    }, 150);
+                };
+                
+                console.log('Starting column removal process from analyzer page button');
+                removeNextColumn();
+            });
+        }
+    });
+    
+    clearBtn.appendChild(icon);
+    buttonContainer.insertBefore(clearBtn, buttonContainer.firstChild);
+    console.log('Clear button injected successfully');
+}
+
+// Check if this is a brand new card and prompt user
+function checkAndPromptNewCard() {
+    const url = new URL(window.location.href);
+    const params = url.searchParams;
+    
+    // A brand new card has only 'cardid' parameter, no 'pageId'
+    const hasCardId = params.has('cardid');
+    const hasPageId = params.has('pageId');
+    
+    const isNewCard = hasCardId && !hasPageId;
+    
+    if (isNewCard) {
+        // Check if we've already prompted for this card
+        const cardId = params.get('cardid');
+        const promptedCards = sessionStorage.getItem('dh-prompted-cards') ? JSON.parse(sessionStorage.getItem('dh-prompted-cards')) : [];
+        
+        if (promptedCards.includes(cardId)) {
+            console.log(`Already prompted user for card ${cardId}`);
+            return;
+        }
+        
+        console.log('Brand new card detected - prompting user to clear columns');
+        // TEMPORARILY DISABLED: const userWantsToClear = confirm('This is a brand new card. Would you like to clear all columns?');
+        const userWantsToClear = false; // Temporarily disabled the alert
+        
+        // Mark that we've prompted for this card
+        promptedCards.push(cardId);
+        sessionStorage.setItem('dh-prompted-cards', JSON.stringify(promptedCards));
+        
+        if (userWantsToClear) {
+            // Get autoSelectTable setting from chrome storage
+            chrome.storage.local.get(['autoSelectTable'], function(settings) {
+                const autoSelectTable = settings.autoSelectTable || false;
+                
+                // Delay to ensure DOM is ready
+                setTimeout(() => {
+                    let count = 0;
+                    
+                    const removeNextColumn = () => {
+                        const xIcons = document.querySelectorAll('i.icon-x-circle-outline');
+                        const xButtons = Array.from(xIcons).map(icon => icon.closest('button')).filter(btn => btn !== null);
+                        
+                        console.log(`Remaining columns: ${xButtons.length}`);
+                        
+                        if (xButtons.length === 0) {
+                            // All done removing columns
+                            if (autoSelectTable) {
+                                console.log(`Auto-selecting table chart type`);
+                                selectTableChartType();
+                            }
+                            
+                            if (count > 0) {
+                                console.log(`Cleared ${count} column${count !== 1 ? 's' : ''}`);
+                            }
+                            return;
+                        }
+                        
+                        const xButton = xButtons[0];
+                        console.log(`Clicking X button (${count + 1})`);
+                        
+                        xButton.click();
+                        
+                        setTimeout(() => {
+                            const removeBtn = document.querySelector('button.remove-button.db-button');
+                            if (removeBtn) {
+                                removeBtn.click();
+                                count++;
+                            }
+                            
+                            setTimeout(removeNextColumn, 300);
+                        }, 150);
+                    };
+                    
+                    console.log('Starting automatic column removal for new card');
+                    removeNextColumn();
+                }, 1000);
+            });
+        }
+    }
+}
+
 $(document).ready(function () {
 
     const url = window.location.href;
-    const isPage = url.includes('/page/');
-    const isGraph = url.endsWith('graph');
-    const isAuthor = url.includes('author');
+    let isPage = url.includes('/page/');
+    let isGraph = url.endsWith('graph');
+    let isAuthor = url.includes('author');
+
+    // Inject clear button on analyzer page
+    if (url.includes('bcpequity.domo.com/analyzer')) {
+        injectClearButton();
+        // Retry injection in case page is still loading
+        setTimeout(injectClearButton, 2000);
+        
+        // Check if this is a brand new card and prompt user
+        setTimeout(checkAndPromptNewCard, 3000);
+    }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // DOMO HELPER / GENERAL / SETTINGS //
@@ -45,6 +314,11 @@ $(document).ready(function () {
             }
         }
     }
+
+    // Listen for settings changes from the message handler
+    document.addEventListener('domoHelperSettingsChanged', function(event) {
+        applySettings(event.detail);
+    });
 
     function removeDomoHelperMenuCleanup() {
         isMenuItemAdded = false;
@@ -179,90 +453,7 @@ urlChangeObserver.observe(document.body, { childList: true, subtree: true });
                 });
             }
 
-            $('body').append(`
-            <div class="modal fade modal-custom" id="fontColorModal" tabindex="-1" role="dialog" aria-labelledby="fontColorModalLabel" aria-hidden="true">
-                <div class="modal-dialog modal-dialog-centered" role="document">
-                    <div class="modal-content">
-                        <button id="bits-modal-close-button" class="db-text-button Modal-module_closeX__UCijY Button-module_button__7BLGt Button-module_default__utLb- Button-module_text__unL1r" type="button" aria-label="Close dialog">
-                            <span class="Button-module_content__b7-cz">
-                                <i role="presentation" class="db-icon icon-x md"></i>
-                            </span>
-                        </button>
-                        <div class="modal-header">
-                            <h5 class="modal-title" id="fontColorModalLabel">Full Text Value</h5>
-                        </div>
-                        <div class="modal-body">
-                            <textarea readonly id="fontColorValue" class="details-landing DfSaveModalContentsWithTriggering_textarea_Sp86n Textarea-module_textarea__Etl2x"></textarea>
-                            <p class="authorNote footnote">Full Text Modal created by Domo Helper Browser Extension.</p>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="db-text-button Button-module_button__7BLGt Button-module_default__utLb- Button-module_raised__IpSHu copy-button" id="copyToClipboardButton">Copy to Clipboard</button>
-                            <button type="button" class="db-text-button Button-module_button__7BLGt Button-module_primary__TrzCx Button-module_raised__IpSHu" id="closeModalButton">Close</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-fade" id="modalBackground" role="presentation"></div>
-        `);
-
-
-            // Copy to Clipboard functionality
-            $(document).on("click", "#copyToClipboardButton", function () {
-                const fullText = $("#fontColorValue").val();
-                navigator.clipboard.writeText(fullText).then(function () {
-                    console.log('Text copied to clipboard');
-                }).catch(function (err) {
-                    console.error('Could not copy text: ', err);
-                });
-            });
-
-            // Close the modal when the new close button is clicked
-            $(document).on("click", "#bits-modal-close-button", function () {
-                if (isPage) {
-                    $('#fontColorModal').hide();
-                    $('#modalBackground').hide();
-                    $('.modal-backdrop').remove();
-                }
-            });
-
-            // Close the modal when the close button is clicked
-            $(document).on("click", "#closeModalButton", function () {
-                if (isPage) {
-                    $('#fontColorModal').hide();
-                    $('#modalBackground').hide();
-                    $('.modal-backdrop').remove();
-                }
-            });
-
-            // Close the modal when clicking outside of it
-            $(document).on("click", function (event) {
-                if (isPage) {
-                    if (!$(event.target).closest(".modal-dialog, .kpi-details .kpi-content .kpiimage table tr td a, .kpi-details .kpicontent .kpiimage table tr td a").length) {
-                        $('#fontColorModal').hide();
-                        $('#modalBackground').hide();
-                        $('.modal-backdrop').remove();
-                    }
-                }
-            });
-
-            // Close the modal when pressing the ESC key
-            $(document).on("keydown", function (event) {
-                if (isPage) {
-                    if (event.key === "Escape") {
-                        $('#fontColorModal').hide();
-                        $('#modalBackground').hide();
-                        $('.modal-backdrop').remove();
-                    }
-                }
-            });
-
-            // Remove the modal-backdrop when the modal is hidden
-            $('#fontColorModal').on('hidden.bs.modal', function () {
-                if (isPage) {
-                    $('#modalBackground').hide();
-                    $('.modal-backdrop').remove();
-                }
-            });
+            // Old modal removed - now using feature-page-fulltext.js module with createModal()
 
    // Function to initialize the Jump to: functionality and remove badge-content-shield
    function processNotebookBody(notebookBody) {
@@ -848,12 +1039,6 @@ function removeDomoHelperMenu() {
 
         let currentToggleSaveButton;
 
-        chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
-            if (message.type === "settingsChanged") {
-                applySettings(message.settings);
-            }
-        });
-
         chrome.storage.local.get(['enabled', 'removeLinks', 'forceVersionNotes', 'minWords'], function (settings) {
             applySettings(settings);
         });
@@ -883,71 +1068,13 @@ function removeDomoHelperMenu() {
                         }
                     }
 
-                    $('#fontColorValue').val(fontColorValue ? fontColorValue : 'No full text value found');
-
-                    $('#fontColorModal').show();
-                    $('#modalBackground').show(); // Show the background blur
-                    $('#modalBackground').css('display', 'block !important');
+                    // Old modal code removed - now using feature-page-fulltext.js
                 } else {
-                    $('#fontColorValue').val('No data-drill-none attribute found');
-                    $('#fontColorModal').show();
-                    $('#modalBackground').show(); // Show the background blur
-                    $('#modalBackground').css('display', 'block !important');
+                    // Old modal code removed - now using feature-page-fulltext.js
                 }
             });
        
-        // Close the modal when the close button is clicked
-        $(document).on("click", "#closeModalButton", function () {
-            if (isPage) {
-                $('#fontColorModal').hide();
-                $('#modalBackground').hide();
-                $('#modalBackground').css('display', 'none !important');
-                $('.modal-backdrop').remove();
-            }
-        });
-
-        // Close the modal when the new close button is clicked
-        $(document).on("click", "#bits-modal-close-button", function () {
-            if (isPage) {
-                $('#fontColorModal').hide();
-                $('#modalBackground').hide();
-                $('#modalBackground').css('display', 'none !important');
-                $('.modal-backdrop').remove();
-            }
-        });
-
-        // Close the modal when clicking outside of it
-        $(document).on("click", function (event) {
-            if (isPage) {
-                if (!$(event.target).closest(".modal-dialog, .kpi-details .kpi-content .kpiimage table tr td a, .kpi-details .kpicontent .kpiimage table tr td a").length) {
-                    $('#fontColorModal').hide();
-                    $('#modalBackground').hide();
-                    $('#modalBackground').css('display', 'none !important');
-                    $('.modal-backdrop').remove();
-                }
-            }
-        });
-
-        // Close the modal when pressing the ESC key
-        $(document).on("keydown", function (event) {
-            if (isPage) {
-                if (event.key === "Escape") {
-                    $('#fontColorModal').hide();
-                    $('#modalBackground').hide();
-                    $('#modalBackground').css('display', 'none !important');
-                    $('.modal-backdrop').remove();
-                }
-            }
-        });
-
-        // Remove the modal-backdrop when the modal is hidden
-        $('#fontColorModal').on('hidden.bs.modal', function () {
-            if (isPage) {
-                $('#modalBackground').hide();
-                $('#modalBackground').css('display', 'none !important');
-                $('.modal-backdrop').remove();
-            }
-        });
+        // Old modal handlers removed - now using feature-page-fulltext.js
     }
 
 

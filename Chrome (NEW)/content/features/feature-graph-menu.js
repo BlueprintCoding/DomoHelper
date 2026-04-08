@@ -48,42 +48,50 @@ function addSection(sb) {
   const catContainer      = qs('[class^="DfCategories_categoryContainer_"]', helper);
   if (catContainer) catContainer.innerHTML = '';
 
-  // sniff live classes from an existing tile
-  const sample = qs('[data-testid="SIDEBAR_DEFINITION"] [class^="DfSidebarNode_container_"]', sb)
-                 ?.closest('[data-testid="SIDEBAR_DEFINITION"]');
-  const nodeDiv             = sample?.querySelector('[class^="DfNode_node_"]');
-  const icon                = sample?.querySelector('i[class*="DfNode_iconSize_"]');
-  const actionNameEl        = sample?.querySelector('[class^="DfNode_actionName_"]');
-  const sidebarActionNameEl = sample?.querySelector('[class^="DfSidebarNode_sidebarActionName_"]');
-  const sidebarNodeSquare   = sample?.querySelector('[class^="DfSidebarNode_sidebarNode_"]');
-
-  const classes = {
-    nodePosition: sample?.closest('[class^="DfCategories_nodePosition_"]')?.classList[0] || 'DfCategories_nodePosition_4f142',
-    sidebarNodeContainer: sample?.querySelector('[class^="DfSidebarNode_container_"]')?.classList[0] || 'DfSidebarNode_container_8bf98',
-    node: nodeDiv?.classList[0] || 'DfNode_node_e0daf',
-    iconSize: icon ? Array.from(icon.classList).find(c => c.startsWith('DfNode_iconSize_')) || '' : 'DfNode_iconSize_e0daf',
-    actionName: actionNameEl?.classList[0] || 'DfNode_actionName_e0daf',
-    sidebarActionName: sidebarActionNameEl?.classList[0] || 'DfSidebarNode_sidebarActionName_8bf98',
-    sidebarNodeSquare: sidebarNodeSquare?.classList[0] || 'DfSidebarNode_sidebarNode_8bf98',
-  };
-
-  const itemHTML = `
-    <div data-testid="domo-helper-menu" class="${classes.nodePosition}">
-      <div aria-describedby="useUniqueIdMagicETLRecipes">
-        <div id="openMagicETLRecipes" class="${classes.sidebarNodeContainer}">
-          <div data-testid="MagicETLRecipes" class="${classes.node} ${classes.sidebarNodeSquare}" draggable="true">
-            <i role="presentation" class="db-icon icon-magic md ${classes.iconSize}"></i>
-          </div>
-          <div class="${classes.actionName} ${classes.sidebarActionName}">
-            <span class="position-relative">Magic ETL Recipes</span>
-          </div>
-        </div>
-      </div>
-      <div role="tooltip" class="Tooltip-module_srOnly__V-ZI0" id="useUniqueIdMagicETLRecipes">
-        <div><div>View and insert Magic ETL Recipes.</div></div>
-      </div>
-    </div>`;
-  catContainer?.insertAdjacentHTML('beforeend', itemHTML);
+  // Clone the first sidebar item to use as a template for perfect structure matching
+  const sampleItem = qs('[data-testid="SIDEBAR_DEFINITION"]', sb);
+  if (sampleItem) {
+    const clonedItem = sampleItem.cloneNode(true);
+    
+    // Update the cloned item's internal elements
+    const nodeDiv = clonedItem.querySelector('[class^="DfNode_node_"]');
+    if (nodeDiv) nodeDiv.setAttribute('data-testid', 'MagicETLRecipes');
+    
+    const icon = clonedItem.querySelector('i[class*="db-icon"]');
+    if (icon) {
+      // Replace the icon class while preserving all other classes
+      const classes = Array.from(icon.classList);
+      const newClasses = classes
+        .filter(c => !c.startsWith('icon-'))
+        .join(' ');
+      icon.className = newClasses + ' icon-magic';
+    }
+    
+    const label = clonedItem.querySelector('[class*="DfNode_actionName_"]');
+    if (label) {
+      const span = label.querySelector('span');
+      if (span) span.textContent = 'Magic ETL Recipes';
+    }
+    
+    // Update the aria-describedby to match our tooltip
+    const describer = clonedItem.querySelector('[aria-describedby]');
+    if (describer) describer.setAttribute('aria-describedby', 'useUniqueIdMagicETLRecipes');
+    
+    // Add the title attribute for native tooltip
+    const container = clonedItem.querySelector('[aria-describedby]');
+    if (container) container.setAttribute('title', 'View and insert Magic ETL Recipes.');
+    
+    // Set the ID for our click handler
+    const openBtn = clonedItem.querySelector('[class^="DfSidebarNode_container_"]');
+    if (openBtn) openBtn.id = 'openMagicETLRecipes';
+    
+    // Wrap it in the proper container
+    const wrapper = document.createElement('div');
+    wrapper.setAttribute('data-testid', 'domo-helper-menu');
+    wrapper.appendChild(clonedItem);
+    
+    catContainer?.appendChild(wrapper);
+  }
 
   // collapse initially
   const someChildren = qs('[class^="DfCategorySlideOut_childrenContainer_"]', sb);
@@ -134,9 +142,15 @@ function getMSOClasses(sb) {
   const icon  = btn?.querySelector('i[class*="DfMultipleSelectedOperations_icon_"]');
   const label = btn?.querySelector('[class^="DfMultipleSelectedOperations_buttonLabel_"]');
 
+  // Extract ALL Button-module classes from the existing button
+  const buttonModuleClasses = Array.from(btn?.classList || [])
+    .filter(c => c.startsWith('Button-module_'))
+    .join(' ');
+
   return {
     containerCls: cont?.classList[0] || 'DfMultipleSelectedOperations_multiSelectButtonContainer_X',
     buttonCls:    Array.from(btn?.classList || []).find(c => c.startsWith('DfMultipleSelectedOperations_multiSelectButton_')) || 'DfMultipleSelectedOperations_multiSelectButton_X',
+    buttonModuleClasses: buttonModuleClasses,
     contentCls:   Array.from(span?.classList || []).find(c => c.startsWith('DfMultipleSelectedOperations_content_')) || 'DfMultipleSelectedOperations_content_X',
     iconCls:      Array.from(icon?.classList || []).find(c => c.startsWith('DfMultipleSelectedOperations_icon_')) || 'DfMultipleSelectedOperations_icon_X',
     labelCls:     label?.classList[0] || 'DfMultipleSelectedOperations_buttonLabel_X',
@@ -149,36 +163,48 @@ function ensureSaveButton(sb) {
 
   if (qs('#DH-Magic-Recipe-cont', host)) return; // already there
 
-  const copyBtn = qs('[data-testid="COPY_SIDEBAR"]', host);
-  if (!copyBtn) return;
+  // Find the first button container to use as a template
+  const firstButtonContainer = qs('[class^="DfMultipleSelectedOperations_multiSelectButtonContainer_"]', host);
+  if (!firstButtonContainer) return;
 
-  const classes = getMSOClasses(sb);
-
-  const wrapper = document.createElement('div');
-  wrapper.className = classes.containerCls;
+  // Clone the entire first button container
+  const wrapper = firstButtonContainer.cloneNode(true);
   wrapper.id = 'DH-Magic-Recipe-cont';
-  wrapper.innerHTML = `
-    <button id="DH-Magic-Recipe-btn"
-            class="db-text-button ${classes.buttonCls} Button-module_button__7BLGt Button-module_default__utLb- Button-module_flat__aBcd9"
-            type="button">
-      <span class="Button-module_content__b7-cz ${classes.contentCls}">
-        <i class="db-icon icon-magic lg ${classes.iconCls}" role="presentation"></i>
-        <div class="${classes.labelCls}">Save Magic ETL Recipe</div>
-      </span>
-    </button>
-  `;
 
-  // insert after the Copy button container
-  const copyContainer = copyBtn.closest(`[class^="DfMultipleSelectedOperations_multiSelectButtonContainer_"]`);
-  (copyContainer || host.lastElementChild)?.insertAdjacentElement('afterend', wrapper);
+  // Update the button inside the cloned container
+  const button = wrapper.querySelector('button');
+  if (button) {
+    button.id = 'DH-Magic-Recipe-btn';
+    button.removeAttribute('data-testid');
+
+    // Update the icon
+    const icon = button.querySelector('i');
+    if (icon) {
+      icon.className = icon.className.replace(/icon-\S+/, 'icon-magic');
+    }
+
+    // Update the label text
+    const label = button.querySelector('[class*="DfMultipleSelectedOperations_buttonLabel_"]');
+    if (label) {
+      label.textContent = 'Save Magic ETL Recipe';
+    }
+  }
+
+  // Find the Copy button container and insert after it
+  const copyBtn = qs('[data-testid="COPY_SIDEBAR"]', host);
+  const copyContainer = copyBtn?.closest('[class^="DfMultipleSelectedOperations_multiSelectButtonContainer_"]');
+  if (copyContainer) {
+    copyContainer.insertAdjacentElement('afterend', wrapper);
+  } else {
+    host.appendChild(wrapper);
+  }
 
   // on click: ask recipes module to perform the save flow (pass the real Copy button)
-  wrapper.querySelector('#DH-Magic-Recipe-btn')
-    .addEventListener('click', () => {
-      document.dispatchEvent(new CustomEvent('dh:request-save-recipe', {
-        detail: { copyButton: copyBtn }
-      }));
-    });
+  button.addEventListener('click', () => {
+    document.dispatchEvent(new CustomEvent('dh:request-save-recipe', {
+      detail: { copyButton: copyBtn }
+    }));
+  });
 }
 
 function removeSaveButton(sb) {
@@ -277,19 +303,26 @@ function sync() {
     removeSaveButton(sb);
   } else if (isMultiSelect(sb)) {
     removeSection();
-    ensureSaveButton(sb);
+    // Save button removed - use side panel save instead
+    removeSaveButton(sb);
   } else {
     removeSection();
     removeSaveButton(sb);
   }
 
   // always check context menus on each sync
-  ensureContextSaveInAllMenus();
+  // Context menu save option removed - use side panel save instead
+  // ensureContextSaveInAllMenus();
 }
 
 /* ---------------- lifecycle ---------------- */
 export default {
-  init() {
+  init({ PageDetector } = {}) {
+    // Optional: Verify we're on the correct page type
+    if (PageDetector && !PageDetector.isMagicETL()) {
+      console.warn('[Graph Menu] Warning: Feature initialized on non-Magic-ETL page');
+    }
+    
     bodyObserver = new MutationObserver(scheduleSync);
     bodyObserver.observe(document.body, { childList: true, subtree: true });
     scheduleSync();

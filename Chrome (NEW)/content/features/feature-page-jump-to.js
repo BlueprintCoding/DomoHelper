@@ -22,7 +22,12 @@ function processNotebookBody(notebookBody) {
 }
 
 export default {
-  init() {
+  init({ PageDetector } = {}) {
+    // Optional: Verify we're on the correct page type
+    if (PageDetector && !PageDetector.isPage()) {
+      console.warn('[Page Jump To] Warning: Feature initialized on non-PAGE context');
+    }
+    
     // Initial scan
     document.querySelectorAll('div.notebookBody').forEach(processNotebookBody);
 

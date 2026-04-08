@@ -95,7 +95,15 @@ const MODAL_TARGETS = [
     match(root) { return root.classList?.contains('df-save-modal') || !!q(root, '.df-save-modal'); },
     findTextarea(root) { return q(root, 'textarea.input') || q(root, 'textarea'); },
     findTitleInput() { return null; }, // SQL Save As not handled here
-    findSaveButtons(root) { return filterVisibleButtons(qa(root, '.modal-footer .done.db-button, .modal-footer button')); }
+    findSaveButtons(root) { 
+      const footer = q(root, '.modal-footer');
+      if (!footer) return [];
+      // Find the primary/done button, not the cancel button
+      const btns = qa(footer, 'button');
+      // Look for the "done" button class or the primary button
+      const saveBtn = btns.find(b => /\bdone\b/.test(b.className) || /\bButton-module_primary\b/.test(b.className));
+      return saveBtn ? filterVisibleButtons([saveBtn]) : filterVisibleButtons(btns.slice(-1));
+    }
   }
 ];
 

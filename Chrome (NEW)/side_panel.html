@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Domo Helper Settings</title>
+    <style>
+        :root {
+            --background-dark: #1a1a1a;
+            --surface-dark: #2d2d2d;
+            --surface-light: #3a3a3a;
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0b0;
+            --primary-color: #4a90e2;
+            --primary-hover: #5a9ff2;
+            --primary-active: #3a80d2;
+            --success-color: #4caf50;
+            --warning-color: #ff9800;
+            --danger-color: #e74c3c;
+            --danger-hover: #c0392b;
+            --border-color: #404040;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            width: 100%;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Open Sans, Helvetica Neue, sans-serif;
+            background-color: var(--background-dark);
+            color: var(--text-primary);
+            overflow-y: auto;
+        }
+        
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            padding: 8px;
+        }
+        
+        .header {
+            text-align: center;
+            border-bottom: 1px solid var(--border-color);
+            padding: 5px;
+            display: flex;
+            gap: 10px;
+            flex-direction: row;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .header img {
+            width: 25px;
+            height: 25px;
+        }
+
+        .header h1 {
+            font-size: 20px;
+            font-weight: 600;
+            margin: 0;
+            color: var(--text-primary);
+        }
+
+        .info-text {
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-align: center;
+            margin-bottom: 8px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .section {
+            background-color: var(--surface-dark);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            padding: 16px;
+            margin-bottom: 12px;
+            transition: border-color 0.2s;
+        }
+
+        .section:hover {
+            border-color: #505050;
+        }
+
+        .section-title {
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--primary-color);
+            margin-bottom: 12px;
+        }
+
+        .setting-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .setting-item:last-of-type {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        /* Checkbox Styling */
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: var(--primary-color);
+            flex-shrink: 0;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+            cursor: pointer;
+        }
+
+        label {
+            font-size: 13px;
+            color: var(--text-primary);
+            line-height: 1.4;
+            cursor: pointer;
+        }
+
+        .label-text {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .description {
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-weight: 400;
+        }
+
+        /* Input Styling */
+        input[type="number"] {
+            width: 100%;
+            padding: 8px 12px;
+            background-color: var(--surface-light);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+
+        input[type="number"]:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            background-color: #464646;
+        }
+
+        .input-row {
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .input-row:last-of-type {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .input-label {
+            font-size: 12px;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+            display: block;
+            font-weight: 500;
+        }
+
+        /* Button Styling */
+        button {
+            font-family: inherit;
+            font-weight: 500;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 13px;
+            padding: 10px 16px;
+        }
+
+        #clearAnalyzerBtn {
+            width: 100%;
+            padding: 12px 16px;
+            background-color: var(--danger-color);
+            color: white;
+            font-weight: 600;
+            margin: 10px 0;
+        }
+
+        #clearAnalyzerBtn:hover:not(:disabled) {
+            background-color: var(--danger-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
+        }
+
+        #clearAnalyzerBtn:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        #clearAnalyzerBtn:disabled {
+            background-color: #666666;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        #saveRecipeBtn {
+            width: 100%;
+            padding: 10px 16px;
+            background-color: var(--primary-color);
+            color: white;
+            font-weight: 600;
+        }
+
+        #saveRecipeBtn:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
+        }
+
+        #saveRecipeBtn:active {
+            transform: translateY(0);
+        }
+
+        #copyTemplate {
+            width: 100%;
+            padding: 10px 16px;
+            background-color: var(--primary-color);
+            color: white;
+            margin-top: 8px;
+        }
+
+        #copyTemplate:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
+        }
+
+        #copyTemplate:active {
+            transform: translateY(0);
+        }
+
+        /* Textarea Styling */
+        textarea {
+            width: 100%;
+            padding: 10px;
+            background-color: var(--background-dark);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            resize: none;
+            margin-top: 8px;
+            font-weight: 500;
+            line-height: 1.4;
+            height: 140px;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        /* Template Section */
+        .template-section {
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .template-section:last-of-type {
+            border-bottom: none;
+        }
+
+        .template-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+            display: block;
+        }
+
+        .template-description {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        h4 {
+            margin: 0;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        /* Tab Styling */
+        .tabs {
+            display: flex;
+            gap: 0;
+            border-bottom: 2px solid var(--border-color);
+            margin: 0 -16px 16px -16px;
+            padding: 0 16px;
+        }
+
+        .tab-button {
+            flex: 1;
+            padding: 12px 16px;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .tab-button:hover {
+            color: var(--text-primary);
+            background-color: rgba(74, 144, 226, 0.05);
+        }
+
+        .tab-button.active {
+            color: var(--primary-color);
+            border-bottom-color: var(--primary-color);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Context Tab */
+        .context-placeholder {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-secondary);
+        }
+
+        .context-placeholder h2 {
+            font-size: 16px;
+            color: var(--text-primary);
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+
+        .context-placeholder p {
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        /* Recipe Item */
+        .recipe-item {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            background-color: var(--surface-light);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 12px;
+            gap: 10px;
+        }
+
+        .recipe-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .recipe-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0 0 4px 0;
+            word-break: break-word;
+        }
+
+        .recipe-description {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin: 0;
+            line-height: 1.4;
+        }
+
+        .recipe-actions {
+            display: flex;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+
+        .recipe-btn {
+            padding: 6px 10px;
+            font-size: 11px;
+            font-weight: 600;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .recipe-insert {
+            background-color: var(--success-color);
+            color: white;
+        }
+
+        .recipe-insert:hover {
+            background-color: #45a049;
+            transform: translateY(-1px);
+        }
+
+        .recipe-delete {
+            background-color: var(--danger-color);
+            color: white;
+        }
+
+        .recipe-delete:hover {
+            background-color: var(--danger-hover);
+            transform: translateY(-1px);
+        }
+
+        /* Recipe Form Styling */
+        .recipe-form-section {
+            display: none;
+        }
+
+        .form-field {
+            margin-bottom: 12px;
+        }
+
+        .form-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        .form-input,
+        .form-textarea {
+            width: 100%;
+            padding: 8px 10px;
+            background-color: var(--surface-light);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 12px;
+            box-sizing: border-box;
+            transition: all 0.2s;
+        }
+
+        .form-input:focus,
+        .form-textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            background-color: #464646;
+        }
+
+        .form-textarea {
+            resize: vertical;
+            min-height: 60px;
+            font-family: 'Courier New', monospace;
+            color: #00ff00;
+            font-size: 11px;
+        }
+
+        .form-textarea:read-only {
+            background-color: #2a2a2a;
+            color: #888888;
+        }
+
+        .form-buttons {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .form-button {
+            flex: 1;
+            padding: 10px 12px;
+            border: none;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .form-button-save {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .form-button-save:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-1px);
+        }
+
+        .form-button-cancel {
+            background-color: var(--danger-color);
+            color: white;
+        }
+
+        .form-button-cancel:hover {
+            background-color: var(--danger-hover);
+            transform: translateY(-1px);
+        }
+
+        /* Column Search Tile Result Styles */
+        .dh-search-tile-item {
+            background-color: var(--surface-light);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .dh-search-tile-item:hover {
+            border-color: var(--primary-color);
+            background-color: #404040;
+            transform: translateX(2px);
+            box-shadow: 0 2px 8px rgba(74, 144, 226, 0.2);
+        }
+
+        .dh-search-tile-item.active {
+            border-color: var(--primary-color);
+            background-color: #3a4a5a;
+            box-shadow: inset 0 0 0 2px var(--primary-color);
+        }
+
+        .dh-search-tile-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .dh-search-tile-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+            flex: 1;
+            word-break: break-word;
+        }
+
+        .dh-search-tile-type {
+            font-size: 10px;
+            background-color: var(--primary-color);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .dh-search-tile-operations {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .dh-search-operation {
+            font-size: 11px;
+            color: var(--text-secondary);
+            padding: 4px 0;
+            border-top: 1px solid var(--border-color);
+            padding-top: 6px;
+        }
+
+        .dh-search-operation-icon {
+            margin-right: 4px;
+        }
+
+        .dh-search-operation:first-child {
+            border-top: none;
+            padding-top: 0;
+        }
+
+        .dh-search-operation-label {
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-right: 4px;
+        }
+
+        .dh-search-operation-detail {
+            color: #888;
+            font-size: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="icons/icon-128.png">
+            <h1>Domo Helper</h1>
+        </div>
+
+        <!-- Tab Navigation -->
+        <div class="tabs">
+            <button class="tab-button active" data-tab="context">Context</button>
+            <button class="tab-button" data-tab="columnSearch">Search</button>
+            <button class="tab-button" data-tab="settings">Settings</button>
+        </div>
+
+        <!-- Context Tab -->
+        <div id="context" class="tab-content active">
+            <div id="contextPlaceholder" class="context-placeholder">
+                <h2>📄 Page Context</h2>
+                <p>Context information about the current page will appear here.</p>
+                <p style="margin-top: 12px; font-size: 12px; color: var(--text-secondary);">
+                    Navigate to a Domo page to see relevant information and tools.
+                </p>
+            </div>
+
+            <!-- Magic ETL Recipes Section (hidden by default) -->
+            <div id="magicRecipesSection" style="display: none;">
+                <!-- Copy Detected Message -->
+                <div id="copyDetectedMessage" style="display: none; background-color: var(--success-color); border-radius: 6px; padding: 12px; margin-bottom: 12px; color: white; font-size: 13px; line-height: 1.5;">
+                    Tiles copied to clipboard! Click the button below to save as a recipe.
+                </div>
+
+                <!-- Suggestion Actions -->
+                <div class="section">
+                    <div class="section-title">Suggestion Actions</div>
+                    <p class="description" style="margin-bottom: 12px;">Quick actions for the current page context.</p>
+                    
+                    <button id="saveRecipeBtn">
+                        💾 Save Current Recipe
+                    </button>
+                </div>
+
+                <!-- Recipe Creation Form (hidden until Save is clicked) -->
+                <div id="recipeFormSection" class="section recipe-form-section">
+                    <div class="section-title">Create New Recipe</div>
+                    
+                    <div class="form-field">
+                        <label class="form-label" for="recipeFormTitle">Title *</label>
+                        <input type="text" id="recipeFormTitle" class="form-input" placeholder="Enter recipe title">
+                    </div>
+                    
+                    <div class="form-field">
+                        <label class="form-label" for="recipeFormDescription">Description *</label>
+                        <textarea id="recipeFormDescription" class="form-textarea" placeholder="Enter recipe description" style="font-family: inherit; color: var(--text-primary); min-height: 50px;"></textarea>
+                    </div>
+                    
+                    <div class="form-field">
+                        <label class="form-label">Recipe Preview</label>
+                        <textarea id="recipeFormPreview" class="form-textarea" readonly placeholder="Recipe JSON preview will appear here" style="min-height: 120px;"></textarea>
+                    </div>
+                    
+                    <div class="form-buttons">
+                        <button id="recipeFormSaveBtn" class="form-button form-button-save">Save Recipe</button>
+                        <button id="recipeFormCancelBtn" class="form-button form-button-cancel">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Magic ETL Recipes -->
+                <div class="section">
+                    <div class="section-title">Magic ETL Recipes</div>
+                    <p class="description" style="margin-bottom: 12px;">Saved recipes for quick insertion into your Magic ETL.</p>
+                    
+                    <div id="recipesList" style="display: flex; flex-direction: column; gap: 10px;">
+                        <!-- Recipes will be inserted here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Column Search Tab -->
+        <div id="columnSearch" class="tab-content">
+            <div id="columnSearchPlaceholder" class="context-placeholder">
+                <h2>🔍 Column Search</h2>
+                <p>Not available on this page.</p>
+                <p style="margin-top: 12px; font-size: 12px; color: var(--text-secondary);">
+                    Open a Magic ETL canvas to search for columns across tiles.
+                </p>
+            </div>
+
+            <!-- Column Search UI (hidden by default) -->
+            <div id="columnSearchSection" style="display: none;">
+                <!-- Search Input Section -->
+                <div class="section">
+                    <div class="section-title">Search for Columns</div>
+                    <div class="form-field">
+                        <!-- Search input with clear button inside -->
+                        <div style="position: relative; margin-bottom: 8px;">
+                            <input type="text" id="columnSearchInput" class="form-input" placeholder="Enter column name..." style="padding-right: 28px;">
+                            <button id="columnSearchClearBtn" class="form-button" style="position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-secondary); padding: 4px 4px; font-size: 16px; cursor: pointer; display: none;" title="Clear search">✕</button>
+                        </div>
+                        <button id="columnSearchBtn" class="form-button form-button-save" style="width: 100%; margin-bottom: 8px;">Search</button>
+                    </div>
+
+                    <!-- Filter Options -->
+                    <div style="margin-bottom: 8px; padding: 8px; background-color: var(--surface-light); border-radius: 4px;">
+                        <!-- Search Options -->
+                        <div style="margin-bottom: 8px;">
+                            <div style="font-size: 10px; color: var(--text-secondary); margin-bottom: 6px; font-weight: 600;">Search options:</div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                                <div class="setting-item">
+                                    <div class="checkbox-label">
+                                        <input type="checkbox" id="filterCaseSensitive">
+                                        <div class="label-text" style="margin: 0; font-size: 11px;">
+                                            <span>Case Sensitive</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="setting-item">
+                                    <div class="checkbox-label">
+                                        <input type="checkbox" id="filterExactMatch">
+                                        <div class="label-text" style="margin: 0; font-size: 11px;">
+                                            <span>Exact Match</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tile Type Filters -->
+                        <div>
+                            <div style="font-size: 10px; color: var(--text-secondary); margin-bottom: 6px; font-weight: 600;">Include Tile Types in Results:</div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                                <div class="setting-item">
+                                    <div class="checkbox-label">
+                                        <input type="checkbox" id="filterSelectColumns" checked>
+                                        <div class="label-text" style="margin: 0; font-size: 11px;">
+                                            <span>Select Columns</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="setting-item">
+                                    <div class="checkbox-label">
+                                        <input type="checkbox" id="filterInputOutput" checked>
+                                        <div class="label-text" style="margin: 0; font-size: 11px;">
+                                            <span>Input/Output</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <p>You must save your Magic ETL canvas before searching for columns or it will only search from the last save point.</p>
+
+                    <div id="searchStatus" style="font-size: 11px; color: var(--text-secondary); text-align: center; margin: 8px 0; display: none;">
+                        <span id="searchStatusText"></span>
+                    </div>
+                </div>
+
+                <!-- Search Results Section -->
+                <div id="searchResultsSection" style="display: none;">
+                    <div class="section">
+                        <div class="section-title">Search Results</div>
+                        <p id="resultsCount" class="description" style="margin-bottom: 12px;"></p>
+                        
+                        <div id="tileResultsList" style="display: flex; flex-direction: column; gap: 8px;">
+                            <!-- Tile results will be inserted here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Empty Results Message -->
+                <div id="noResultsMessage" style="display: none;">
+                    <div class="section" style="text-align: center; padding: 24px;">
+                        <p style="margin: 0; color: var(--text-secondary); font-size: 13px;">
+                            No tiles found containing that column.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Tab -->
+        <div id="settings" class="tab-content">
+            <div class="info-text">You may need to refresh the page if you changed the settings on another tab.</div>
+            
+            <!-- Force Version Notes Settings -->
+            <div class="section">
+                <div class="section-title">Force Version Notes</div>
+                
+                <div class="setting-item">
+                    <div class="checkbox-label">
+                        <input type="checkbox" id="toggleVersionNotes">
+                        <div class="label-text">
+                            <span>Force Version Notes on Magic and SQL Flows</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="input-row">
+                    <label class="input-label" for="wordCount">Minimum Version Word Count</label>
+                    <input type="number" id="wordCount" min="1" value="5">
+                </div>
+
+                <div class="description" style="padding-top: 10px; border-top: 1px solid var(--border-color);">
+                    Can't stop being lazy and keep skipping adding version notes to your ETLs? Me too, that's why I made this extension to force you to add a note before saving.
+                </div>
+            </div>
+
+            <!-- Analyzer Tools -->
+            <div class="section">
+                <div class="section-title">Analyzer Tools</div>
+                
+                <button id="clearAnalyzerBtn">Clear All Analyzer Columns</button>
+                <div class="description">Removes all columns from the analyzer. Only works on https://bcpequity.domo.com/analyzer</div>
+                
+                <div class="setting-item" style="margin-top: 12px;">
+                    <div class="checkbox-label">
+                        <input type="checkbox" id="toggleAutoSelectTable">
+                        <div class="label-text">
+                            <span>Auto-select Table Chart Type</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="description" style="padding-left: 28px;">Automatically selects the Table chart type after clearing columns</div>
+            </div>
+
+            <!-- Full Text Pop-Up Settings -->
+            <div class="section">
+                <div class="section-title">Full Text Pop-Up</div>
+                
+                <div class="setting-item">
+                    <div class="checkbox-label">
+                        <input type="checkbox" id="toggleFunctionality">
+                        <div class="label-text">
+                            <span>Enable Full Text Pop Up Feature</span>
+                            <span class="description">(this prevents data drill as well)</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="setting-item">
+                    <div class="checkbox-label">
+                        <input type="checkbox" id="toggleRemoveLinks">
+                        <div class="label-text">
+                            <span>Remove Links from rows with no full text</span>
+                            <span class="description">(required a page refresh when turned off)</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="template-section">
+                    <span class="template-label">Beast Mode Template</span>
+                    <span class="template-description">Use this template in Beast Mode to create the full text formula:</span>
+                    <textarea id="beastModeTemplate" readonly></textarea>
+                    <button id="copyTemplate">Copy Template</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="side_panel.js"></script>
+</body>
+</html>

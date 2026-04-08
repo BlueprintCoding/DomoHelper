@@ -24,10 +24,10 @@ function resetDataDrillAttributes() {
 
 function removeInvalidLinks() {
   if (!settingsState.removeLinks) return;
-  $("td a[data-drill]").each(function () {
-    const dataDrill = $(this).attr('data-drill');
-    if (dataDrill) {
-      const drillData = JSON.parse(dataDrill.replace(/&quot;/g, '"'));
+  $("td a[data-drill-none]").each(function () {
+    const dataDrillNone = $(this).attr('data-drill-none');
+    if (dataDrillNone) {
+      const drillData = JSON.parse(dataDrillNone.replace(/&quot;/g, '"'));
       if (drillData.filters?.length) {
         const values = drillData.filters[0].values;
         if (values?.length) {
@@ -90,21 +90,95 @@ function ensureModal() {
 }
 
 function openFullTextModal(textValue) {
+  console.log('📝 Opening modal with text:', textValue);
   const ctl = ensureModal();
-  // Update body textarea value before open (modal preserves Node tree)
-  const ta = document.getElementById('dh-fontColorValue');
-  if (ta) ta.value = textValue || 'No full text value found';
+  
+  // Open the modal first to ensure DOM elements exist
   ctl.open();
+  
+  // Then set the textarea value after a short delay to ensure DOM is ready
+  setTimeout(() => {
+    const ta = document.getElementById('dh-fontColorValue');
+    if (ta) {
+      ta.value = textValue || 'No full text value found';
+      console.log('✅ Modal textarea value set to:', ta.value);
+    } else {
+      console.error('❌ Could not find textarea element dh-fontColorValue after opening modal');
+    }
+  }, 50);
 }
 
 function bindHandlers() {
   if (isBound) return;
   isBound = true;
 
-  // Open modal with full text when clicking KPI cell link
+  console.log('🔗 Binding full text popup handlers');
+
+  // Native DOM event delegation - more reliable for dynamic content
+  document.addEventListener('click', function(event) {
+    const link = event.target.closest('a[data-drill-none]');
+    if (!link) return;
+    
+    console.log('📋 Full text link clicked:', link.textContent);
+    if (!settingsState.enabled) {
+      console.log('❌ Full text feature disabled');
+      return;
+    }
+    event.preventDefault();
+
+    const dataDrillNone = link.getAttribute('data-drill-none');
+    console.log('📊 data-drill-none attribute:', dataDrillNone ? 'found' : 'NOT FOUND');
+    
+    let fontColorValue = 'No full text value found';
+
+    if (dataDrillNone) {
+      try {
+        console.log('🔍 Parsing drill data...');
+        const drillData = JSON.parse(dataDrillNone.replace(/&quot;/g, '"'));
+        console.log('✅ Parsed drill data:', drillData);
+        
+        if (drillData.filters?.length) {
+          console.log('✅ Found', drillData.filters.length, 'filters');
+          const values = drillData.filters[0].values;
+          console.log('📝 Values:', values);
+          
+          if (values?.length) {
+            console.log('🔍 Extracting font-color from:', values[0].substring(0, 100));
+            const div = document.createElement('div');
+            div.innerHTML = values[0];
+            const spanElement = div.querySelector('span');
+            console.log('✅ Found span element:', spanElement ? 'yes' : 'no');
+            
+            if (spanElement) {
+              fontColorValue = spanElement.getAttribute('font-color');
+              console.log('✅ Extracted full text:', fontColorValue);
+            } else {
+              console.log('❌ No span element found in HTML');
+            }
+          } else {
+            console.log('❌ No values in filters');
+          }
+        } else {
+          console.log('❌ No filters in drill data');
+        }
+      } catch (e) {
+        console.error('❌ Error parsing drill data:', e);
+        fontColorValue = 'Error parsing: ' + e.message;
+      }
+    } else {
+      console.log('❌ No data-drill-none attribute found');
+      fontColorValue = 'No data-drill-none attribute found';
+    }
+
+    console.log('📝 Final text to display:', fontColorValue);
+    openFullTextModal(fontColorValue);
+  }, true); // Use capture phase to ensure we catch events
+
+  // Also add jQuery delegated event handler as backup
   $(document).on("click",
-    ".kpi-details .kpi-content .kpiimage table tr td a, .kpi-details .kpicontent .kpiimage table tr td a",
+    "a[data-drill-none]",
     function (event) {
+      console.log('📋 jQuery - Full text link clicked');
       if (!settingsState.enabled) return;
       event.preventDefault();
 
@@ -112,16 +186,19 @@ function bindHandlers() {
       let fontColorValue = 'No full text value found';
 
       if (dataDrillNone) {
-        const drillData = JSON.parse(dataDrillNone.replace(/&quot;/g, '"'));
-        if (drillData.filters?.length) {
-          const values = drillData.filters[0].values;
-          if (values?.length) {
-            const spanElement = $('<div>').html(values[0]).find('span');
-            fontColorValue = spanElement.attr('font-color') || fontColorValue;
+        try {
+          const drillData = JSON.parse(dataDrillNone.replace(/&quot;/g, '"'));
+          if (drillData.filters?.length) {
+            const values = drillData.filters[0].values;
+            if (values?.length) {
+              const spanElement = $('<div>').html(values[0]).find('span');
+              fontColorValue = spanElement.attr('font-color') || fontColorValue;
+              console.log('✅ Extracted full text:', fontColorValue);
+            }
           }
+        } catch (e) {
+          console.error('Error parsing drill data:', e);
         }
-      } else {
-        fontColorValue = 'No data-drill-none attribute found';
       }
 
       openFullTextModal(fontColorValue);
@@ -133,6 +210,7 @@ function bindHandlers() {
     ml.forEach(m => {
       m.addedNodes.forEach(node => {
         if (node.nodeType === 1 && (node.matches('.kpi_chart, .kpi_chart *'))) {
+          console.log('📊 KPI chart detected - applying transformations');
           if (settingsState.removeLinks) removeInvalidLinks();
           if (settingsState.enabled) modifyDataDrillAttributes();
           else resetDataDrillAttributes();
@@ -144,19 +222,38 @@ function bindHandlers() {
 }
 
 export default {
-  init({ DH, settings }) {
+  init({ DH, settings, PageDetector }) {
     DHref = DH;
     settingsState.enabled = settings.enabled;
     settingsState.removeLinks = settings.removeLinks;
+    
+    // Optional: Verify we're on the correct page type
+    if (PageDetector && !PageDetector.isPage()) {
+      console.warn('[Page Full Text] Warning: Feature initialized on non-PAGE context');
+    }
+
+    console.log('🎯 Full Text Popup feature initializing - enabled:', settingsState.enabled, 'removeLinks:', settingsState.removeLinks);
 
     ensureModal(); // build once
     if (settingsState.removeLinks) removeInvalidLinks();
     if (settingsState.enabled) modifyDataDrillAttributes(); else resetDataDrillAttributes();
     bindHandlers();
+    
+    // Watch for dynamically added links and rebind handlers
+    const linkWatcher = new MutationObserver(() => {
+      const links = document.querySelectorAll('a[data-drill-none]');
+      if (links.length > 0 && !isBound) {
+        console.log('🔗 Found', links.length, 'links with data-drill-none - rebinding handlers');
+        bindHandlers();
+      }
+    });
+    linkWatcher.observe(document.body, { childList: true, subtree: true });
   },
   applySettings(newSettings) {
     if (newSettings.enabled !== undefined) settingsState.enabled = !!newSettings.enabled;
     if (newSettings.removeLinks !== undefined) settingsState.removeLinks = !!newSettings.removeLinks;
+
+    console.log('⚙️ Settings updated - enabled:', settingsState.enabled, 'removeLinks:', settingsState.removeLinks);
 
     if (settingsState.removeLinks) removeInvalidLinks();
     else resetInvalidLinks();

@@ -206,8 +206,14 @@ export default function createModal(options = {}) {
   const controller = {
     open() {
       if (state.isOpen) return controller;
-      document.body.appendChild(root);
-      document.body.appendChild(backdrop);
+      
+      // Only append if not already in DOM
+      if (!root.parentNode) {
+        document.body.appendChild(root);
+      }
+      if (!backdrop.parentNode) {
+        document.body.appendChild(backdrop);
+      }
 
       pushToStack();
       root.style.display = 'block';

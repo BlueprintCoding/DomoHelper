@@ -10,7 +10,8 @@
       "scripting",
       "clipboardRead",
       "clipboardWrite",
-      "debugger"
+      "debugger",
+      "sidePanel"
     ],
     "host_permissions": [
       "*://*.domo.com/datacenter/dataflows/*/graph",
@@ -21,11 +22,13 @@
       "service_worker": "background.js"
     },
     "action": {
-      "default_popup": "popup.html",
       "default_icon": {
         "48": "icons/icon-48.png",
         "128": "icons/icon-128.png"
       }
+    },
+    "side_panel": {
+      "default_path": "side_panel.html"
     },
     "content_scripts": [
       {
@@ -38,6 +41,7 @@
           "jquery-3.7.1.min.js",
           "content/content-main.js"
         ],
+        "type": "module",
         "run_at": "document_idle"
       }
     ],
@@ -47,7 +51,9 @@
           "css/dh-graph-style.css",
           "css/dh-page-style.css",
           "css/dh-author-style.css",
-          "content/features/*.js" 
+          "content/shared/*.js",
+          "content/features/*.js",
+          "clipboard-helper.js"
         ],
         "matches": [
           "*://*.domo.com/*"

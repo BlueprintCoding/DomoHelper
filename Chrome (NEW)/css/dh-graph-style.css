@@ -17,14 +17,17 @@
     justify-content: center;
     position: absolute;
     z-index: 99999;
-    top: 40%;
+    top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
     background: white;
-    width: 30%;
-    margin: 0 auto;                    
-    box-shadow: 0 4px 12px rgba(0, 0, 0, .1);
-    border-radius: 3px 3px 3px 3px;
+    width: 90%;
+    max-width: 600px;
+    margin: 0 auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
 }
 .modal-custom {
     display: none;
@@ -44,22 +47,26 @@
     width: 100%;
 }
 .modal-header {
-    border-bottom: 1px solid rgba(0, 0, 0, .1);
-    border-top: 8px solid rgb(153 204 238);
-    border-radius: 3px 3px 0 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+    padding: 16px 24px 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #fafbfc;
 }
 .modal-title {
-    font-size: 20px;
+    font-size: 18px;
     font-weight: 600;
-    color: rgba(0, 0, 0, .8);
-    padding: 22px 52px 16px 24px;
-    margin-top:0px
+    color: #1a1a1a;
+    margin: 0;
+    flex: 1;
 }
 .modal-title-desc {
-    font-size: 14px;
-    color: rgba(0, 0, 0, .8);
-    margin-top: -40px;
-    padding: 22px 5px 16px 24px;
+    font-size: 13px;
+    color: #666666;
+    margin-top: 0;
+    padding: 0;
+    line-height: 1.5;
 }
 .authorNote {
     text-align: left;
@@ -74,23 +81,25 @@
     box-sizing: border-box;
     display: flex;
     flex-shrink: 0;
-    height: 40px;
+    height: auto;
     justify-content: flex-end;
-    padding-right: 24px;
-    padding-bottom: 24px;
-    padding-top: 50px;
+    padding: 24px;
+    gap: 8px;
+    border-top: 1px solid rgba(0, 0, 0, 0.12);
 }
 .footnote {
     text-align: left;
-    padding-bottom: 15px;
+    padding-bottom: 0;
 }
 .modal-body {
-    padding: 24px 24px 2px 24px;
-    min-height: 50px;
+    padding: 24px;
+    min-height: auto;
+    background: white;
 }
 .modal-body-scrollable {
-    max-height: 400px;
+    max-height: 50vh;
     overflow-y: auto;
+    margin-bottom: 16px;
 }
 #recipeDescription {
  resize: none;
@@ -137,6 +146,26 @@ line-height: 24px;
 .dh-bulk-reorder-btn:hover {
     color: #495057 !important;
     background-color: #f8f9fa !important;
+}
+
+/* Column Search Highlight Styles */
+.dh-column-search-highlight {
+    animation: dh-highlight-pulse 1.5s ease-in-out infinite !important;
+    filter: drop-shadow(0 0 20px rgba(255, 235, 59, 1)) drop-shadow(0 0 30px rgba(255, 200, 0, 0.8)) !important;
+    outline: 4px solid rgba(255, 235, 59, 0.9) !important;
+    outline-offset: 3px !important;
+    box-shadow: inset 0 0 20px rgba(255, 235, 59, 0.4) !important;
+}
+
+@keyframes dh-highlight-pulse {
+    0%, 100% {
+        filter: drop-shadow(0 0 20px rgba(255, 235, 59, 1)) drop-shadow(0 0 30px rgba(255, 200, 0, 0.8));
+        opacity: 1;
+    }
+    50% {
+        filter: drop-shadow(0 0 30px rgba(255, 235, 59, 1)) drop-shadow(0 0 40px rgba(255, 200, 0, 1));
+        opacity: 0.98;
+    }
 }
 
 /* Responsive adjustments for smaller screens */
@@ -275,6 +304,229 @@ line-height: 24px;
         padding: 15px !important;
     }
 }
+
+/* Magic ETL Recipes Modal Styling */
+.modal-content {
+    border: none;
+    box-shadow: none;
+    background: transparent;
+}
+
+.recipe-item {
+    padding: 12px 0;
+    border-bottom: 1px solid #e0e0e0;
+    align-items: center;
+}
+
+.recipe-item:last-child {
+    border-bottom: none;
+}
+
+.recipe-item h5 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin: 0 0 4px 0;
+}
+
+.recipe-item p {
+    font-size: 12px;
+    color: #666666;
+    margin: 0;
+}
+
+.dh-delete-all-row {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #e0e0e0;
+}
+
+/* Modal close button positioned correctly */
+.Modal-module_closeX__UCijY {
+    position: absolute !important;
+    top: 16px !important;
+    right: 16px !important;
+    background-color: transparent !important;
+    border: none !important;
+}
+
+/* Save buttons styling */
+.modal-footer .db-text-button.Button-module_primary__TrzCx_v878,
+.modal-footer .db-text-button.Button-module_primary__TrzCx,
+.dh-modal-buttons .db-text-button[type="button"]:not([class*="default"]) {
+    background-color: var(--colorPrimary, #0066cc);
+    color: var(--colorTextButtonPrimary, white);
+    border: 1px solid transparent;
+    border-radius: var(--borderRadius, 4px);
+    box-sizing: border-box;
+    cursor: pointer;
+    display: inline-block;
+    min-height: var(--grid32, 32px);
+    min-width: var(--grid32, 32px);
+    outline-color: var(--colorButtonOutline, #0066cc);
+    outline-offset: var(--buttonOutlineOffset, 2px);
+    overflow: hidden;
+    padding: 0 var(--grid12, 12px);
+    position: relative;
+}
+
+.modal-footer .db-text-button.Button-module_primary__TrzCx_v878:hover,
+.modal-footer .db-text-button.Button-module_primary__TrzCx:hover {
+    opacity: 0.9;
+}
+
+.modal-footer .db-text-button.Button-module_primary__TrzCx_v878:active,
+.modal-footer .db-text-button.Button-module_primary__TrzCx:active {
+    opacity: 0.8;
+}
+
+/* Textarea styling */
+textarea.Textarea-module_textarea__Etl2x,
+textarea.Textarea-module_textarea__Etl2x_v878,
+.modal-body textarea {
+    background-color: #fff;
+    background-color: var(--colorBackground1, #ffffff);
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border: 1px solid var(--colorBorder, rgba(0, 0, 0, 0.15));
+    border-radius: 3px;
+    border-radius: var(--borderRadius, 3px);
+    box-sizing: border-box;
+    height: auto;
+    outline: none;
+    padding: 8px;
+    padding: var(--grid8, 8px);
+    width: 100%;
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+textarea.Textarea-module_textarea__Etl2x:focus,
+textarea.Textarea-module_textarea__Etl2x_v878:focus,
+.modal-body textarea:focus {
+    border-color: var(--colorPrimary, #0066cc);
+    box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.1);
+}
+
+/* Input field styling - match textarea */
+input[type="text"].Input-module_input__9yqHO,
+input[type="text"].Input-module_input__9yqHO_v878,
+.modal-body input[type="text"] {
+    background-color: #fff;
+    background-color: var(--colorBackground1, #ffffff);
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border: 1px solid var(--colorBorder, rgba(0, 0, 0, 0.15));
+    border-radius: 3px;
+    border-radius: var(--borderRadius, 3px);
+    box-sizing: border-box;
+    outline: none;
+    padding: 8px;
+    padding: var(--grid8, 8px);
+    width: 100%;
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+input[type="text"].Input-module_input__9yqHO:focus,
+input[type="text"].Input-module_input__9yqHO_v878:focus,
+.modal-body input[type="text"]:focus {
+    border-color: var(--colorPrimary, #0066cc);
+    box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.1);
+}
+
+
+/* Cancel button styling */
+.modal-footer .db-text-button.Button-module_default__utLb-_v878,
+.modal-footer .db-text-button.Button-module_default__utLb-,
+.modal-footer button:not([class*="primary"]) {
+    background-color: #e5e5e5;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    border-radius: var(--borderRadius, 3px);
+    box-sizing: border-box;
+    cursor: pointer;
+    display: inline-block;
+    min-height: 32px;
+    min-height: var(--grid32, 32px);
+    min-width: 32px;
+    min-width: var(--grid32, 32px);
+    outline-color: #9ce;
+    outline-color: var(--colorButtonOutline, #9ce);
+    outline-offset: 0;
+    outline-offset: var(--buttonOutlineOffset, 0);
+    overflow: hidden;
+    padding: 0 12px;
+    padding: 0 var(--grid12, 12px);
+    position: relative;
+    color: var(--colorTextButton, #1a1a1a);
+}
+
+.modal-footer .db-text-button.Button-module_default__utLb-_v878:hover,
+.modal-footer .db-text-button.Button-module_default__utLb-:hover,
+.modal-footer button:not([class*="primary"]):hover {
+    background-color: var(--colorButtonBackgroundHover, #eeeeee);
+}
+
+.modal-footer .db-text-button.Button-module_default__utLb-_v878:active,
+.modal-footer .db-text-button.Button-module_default__utLb-:active,
+.modal-footer button:not([class*="primary"]):active {
+    background-color: var(--colorButtonBackgroundActive, #e0e0e0);
+}
+
+/* Insert/Delete buttons styling - neutral */
+.modal-body button[class*="insert"],
+.modal-body button[class*="delete"]:not([class*="delete-all"]),
+.modal-body .recipe-item button {
+    background-color: transparent;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border: 1px solid var(--colorBorder, rgba(0, 0, 0, 0.15));
+    border-radius: 3px;
+    border-radius: var(--borderRadius, 3px);
+    box-sizing: border-box;
+    cursor: pointer;
+    padding: 6px 12px;
+    padding: 6px var(--grid12, 12px);
+    font-size: 13px;
+    color: #1a1a1a;
+    background-color: #f5f5f5;
+    background-color: var(--colorButtonBackground, #f5f5f5);
+}
+
+.modal-body button[class*="insert"]:hover,
+.modal-body button[class*="delete"]:not([class*="delete-all"]):hover,
+.modal-body .recipe-item button:hover {
+    background-color: #eeeeee;
+    background-color: var(--colorButtonBackgroundHover, #eeeeee);
+}
+
+/* Delete All button - warning red color */
+.modal-body button[class*="delete-all"],
+.dh-delete-all-button {
+    background-color: #f8d7da;
+    background-color: var(--colorWarningBackground, #f8d7da);
+    border: 1px solid #f5c6cb;
+    border: 1px solid var(--colorWarningBorder, #f5c6cb);
+    border-radius: 3px;
+    border-radius: var(--borderRadius, 3px);
+    box-sizing: border-box;
+    cursor: pointer;
+    padding: 6px 12px;
+    padding: 6px var(--grid12, 12px);
+    font-size: 13px;
+    color: #721c24;
+    color: var(--colorWarningText, #721c24);
+}
+
+.modal-body button[class*="delete-all"]:hover,
+.dh-delete-all-button:hover {
+    background-color: #f5c6cb;
+    background-color: var(--colorWarningBackgroundHover, #f5c6cb);
+}
+
+
+
+
 
 /* Ensure rename field has enough space for copy button */
 .DfSelectColumns_rename_59fc9 {

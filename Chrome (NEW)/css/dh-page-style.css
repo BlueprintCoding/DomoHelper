@@ -70,3 +70,97 @@
 .details-landing {
     resize: none;
 }
+
+/* Full Text Modal Styles */
+#dh-modal-1 .modal-header {
+    position: relative;
+    border-top: none;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+    background: #fafbfc;
+}
+
+#dh-modal-1 .modal-title {
+    padding: 16px 24px;
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #1a1a1a;
+}
+
+/* Full Text Modal Close Button */
+#dh-modal-1 .Modal-module_closeX__UCijY {
+    position: absolute !important;
+    top: 16px !important;
+    right: 16px !important;
+    background-color: transparent !important;
+    border: none !important;
+    padding: 4px !important;
+    min-width: auto !important;
+    min-height: auto !important;
+}
+
+/* Full Text Modal Body */
+#dh-modal-1 .modal-body {
+    padding: 24px;
+    background: white;
+    min-height: 0;
+}
+
+#dh-modal-1 #dh-fontColorValue {
+    width: 100%;
+    height: 200px;
+    max-height: 200px;
+    padding: 12px;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 13px;
+    resize: none;
+    box-sizing: border-box;
+}
+
+/* Full Text Modal Footer */
+#dh-modal-1 .modal-footer {
+    padding: 24px;
+    background: white;
+    border-top: 1px solid rgba(0, 0, 0, 0.12);
+    gap: 8px;
+    height: auto;
+}
+
+/* Full Text Modal Buttons */
+#dh-modal-1 .modal-footer button[id="copy"] {
+    background-color: #f5f5f5;
+    color: #1a1a1a;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    padding: 0 12px;
+    min-height: 32px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+#dh-modal-1 .modal-footer button[id="copy"]:hover {
+    background-color: #eeeeee;
+}
+
+#dh-modal-1 .modal-footer button[id="close"] {
+    background-color: var(--colorPrimary, #0066cc);
+    color: white;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    padding: 0 12px;
+    min-height: 32px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+#dh-modal-1 .modal-footer button[id="close"]:hover {
+    opacity: 0.9;
+}
+
+#dh-modal-1 .authorNote {
+    font-size: 12px;
+    color: #666;
+    margin-top: 8px;
+}

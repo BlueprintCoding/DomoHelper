@@ -103,54 +103,78 @@ function ensureSaveModal() {
   return saveModalCtl;
 }
 
+/* ---------- helper: read clipboard as JSON (via page context) ---------- */
+async function readClipboardJSON() {
+  // Use page context to read clipboard (better permissions)
+  const text = await window.readClipboardViaPageContext();
+  return JSON.parse(text);
+}
+
+/* ---------- helper: read clipboard using execCommand (avoids Clipboard API security) ---------- */
+async function readClipboardViaExecCommand() {
+  console.log('[Magic Recipes] Reading clipboard via execCommand...');
+  
+  // Create a temporary input element
+  const input = document.createElement('input');
+  input.style.position = 'fixed';
+  input.style.left = '-9999px';
+  input.style.top = '-9999px';
+  document.body.appendChild(input);
+  
+  try {
+    // Focus the input
+    input.focus();
+    
+    // Use execCommand to paste clipboard content
+    const success = document.execCommand('paste');
+    console.log('[Magic Recipes] execCommand paste success:', success);
+    
+    if (!success) {
+      throw new Error('execCommand("paste") returned false');
+    }
+    
+    // Get the pasted content
+    const clipboardData = input.value;
+    console.log('[Magic Recipes] Clipboard data retrieved via execCommand');
+    
+    return clipboardData;
+  } finally {
+    // Clean up the temporary input
+    document.body.removeChild(input);
+  }
+}
+
 /* ---------- save handler ---------- */
-async function saveMagicETLRecipe(copyButton) {
-    // Trigger Domo "Copy to Clipboard"
-    if (copyButton?.click) copyButton.click();
-  
-    // Helper to read clipboard with one retry
-    const readClipboardJSON = async () => {
-      try {
-        const text = await navigator.clipboard.readText();
-        return JSON.parse(text);
-      } catch {
-        // brief retry – first invocation can race the copy
-        await new Promise(r => setTimeout(r, 250));
-        const text2 = await navigator.clipboard.readText();
-        return JSON.parse(text2);
+async function saveMagicETLRecipe(jsonData) {
+    console.log('[Magic Recipes] Save triggered with data');
+    
+    try {
+      if (!jsonData) {
+        console.error('[Magic Recipes] No JSON data provided!');
+        DHref?.showNotification?.('No recipe data available', '#ed3737');
+        return;
       }
-    };
-  
-    // Give Domo a moment to populate clipboard
-    setTimeout(async () => {
-      try {
-        let jsonData = await readClipboardJSON();
-  
-        // Strip data.data.*.data
-        const clearDataValues = (obj) => {
-          if (Array.isArray(obj)) obj.forEach(clearDataValues);
-          else if (obj && typeof obj === 'object') {
-            for (const k in obj) {
-              if (k === 'data' && Array.isArray(obj[k])) {
-                obj[k].forEach(sub => { if (sub?.hasOwnProperty('data')) delete sub.data; });
-              } else if (typeof obj[k] === 'object') clearDataValues(obj[k]);
-            }
+
+      // Strip data.data.*.data
+      const clearDataValues = (obj) => {
+        if (Array.isArray(obj)) obj.forEach(clearDataValues);
+        else if (obj && typeof obj === 'object') {
+          for (const k in obj) {
+            if (k === 'data' && Array.isArray(obj[k])) {
+              obj[k].forEach(sub => { if (sub?.hasOwnProperty('data')) delete sub.data; });
+            } else if (typeof obj[k] === 'object') clearDataValues(obj[k]);
           }
-        };
-        clearDataValues(jsonData);
-  
-        // OPEN FIRST, then fill
-        const ctl = ensureSaveModal();
-        ctl.open();
-  
-        const previewTA = ctl.getElement().querySelector('#dh-recipePreview');
-        if (previewTA) previewTA.value = JSON.stringify(jsonData, null, 2);
-  
-      } catch (err) {
-        console.error('Failed to read clipboard contents: ', err);
-        DHref?.showNotification?.('Failed to read clipboard', '#ed3737');
-      }
-    }, 1000);
+        }
+      };
+      clearDataValues(jsonData);
+      
+      // NOTE: Modal save disabled - side panel form is now primary UI
+      // The side panel handles recipe creation through the form
+      DHref?.showNotification?.('Recipe saved via side panel.', '#4CAF50');
+    } catch (err) {
+      console.error('[Magic Recipes] Failed to save recipe: ', err);
+      DHref?.showNotification?.('Failed to save recipe. ' + err.message, '#ed3737');
+    }
   }
   
 
@@ -406,13 +430,50 @@ function unbindListModalDelegates() {
 }
 
 /* --------------------------------
+   Listen for manual copy button clicks
+----------------------------------*/
+let copyButtonListener = null;
+
+function bindCopyButtonListener() {
+  if (copyButtonListener) return; // already bound
+  
+  copyButtonListener = async (e) => {
+    const copyBtn = e.target.closest('[data-testid="COPY_SIDEBAR"]');
+    if (!copyBtn) return;
+    
+    console.log('[Magic Recipes] Copy button clicked by user');
+    
+    // Send message to background script to signal copy detection
+    // (content scripts can't directly access chrome.storage)
+    console.log('[Magic Recipes] Sending magicRecipeCopyDetected message to background...');
+    chrome.runtime.sendMessage({ action: 'magicRecipeCopyDetected' }, (response) => {
+      if (chrome.runtime.lastError) {
+        console.error('[Magic Recipes] Error sending message to background:', chrome.runtime.lastError);
+      } else {
+        console.log('[Magic Recipes] Message sent successfully, response:', response);
+      }
+    });
+  };
+  
+  document.addEventListener('click', copyButtonListener, true);
+}
+
+function unbindCopyButtonListener() {
+  if (!copyButtonListener) return;
+  document.removeEventListener('click', copyButtonListener, true);
+  copyButtonListener = null;
+}
+
+/* --------------------------------
    Bridge from graph-menu
 ----------------------------------*/
 function bindSaveRecipeTrigger() {
   if (onSaveReq) return; // already bound
   onSaveReq = (e) => {
-    const btn = e.detail?.copyButton || document.querySelector('[data-testid="COPY_SIDEBAR"]');
-    saveMagicETLRecipe(btn);
+    const jsonData = e.detail?.jsonData;
+    if (jsonData) {
+      saveMagicETLRecipe(jsonData);
+    }
   };
   document.addEventListener('dh:request-save-recipe', onSaveReq);
 }
@@ -460,16 +521,63 @@ function bindOpenListModalOnce() {
 ----------------------------------*/
 
 export default {
-    init({ DH }) {
+    init({ DH, PageDetector }) {
       DHref = DH;
+      
+      // Optional: Verify we're on the correct page type
+      if (PageDetector && !PageDetector.isMagicETL()) {
+        console.warn('[Magic Recipes] Warning: Feature initialized on non-Magic-ETL page');
+      }
   
       ensureSaveModal();
       ensureListModal();
   
       // bind once
+      bindCopyButtonListener();          // Listen for manual copy button clicks
       bindSaveRecipeTrigger();
       wireListModalDelegates();
-      bindOpenListModalOnce();     
+      bindOpenListModalOnce();
+      
+      // Listen for messages from side panel
+      chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+        if (msg.action === 'READ_RECIPE_CLIPBOARD') {
+          console.log('[Magic Recipes] Reading clipboard for side panel...');
+          const input = document.createElement('input');
+          input.style.position = 'fixed';
+          input.style.left = '-9999px';
+          input.style.top = '-9999px';
+          document.body.appendChild(input);
+          
+          try {
+            input.focus();
+            const success = document.execCommand('paste');
+            
+            if (!success) {
+              sendResponse({ success: false, error: 'execCommand paste failed' });
+              return;
+            }
+            
+            const clipboardData = input.value;
+            if (!clipboardData) {
+              sendResponse({ success: false, error: 'clipboard empty' });
+              return;
+            }
+            
+            // Validate it's JSON
+            try {
+              JSON.parse(clipboardData);
+              sendResponse({ success: true, clipboardData: clipboardData });
+            } catch (err) {
+              sendResponse({ success: false, error: 'invalid JSON' });
+            }
+          } catch (err) {
+            sendResponse({ success: false, error: err.message });
+          } finally {
+            document.body.removeChild(input);
+          }
+          return true; // keep channel open
+        }
+      });
   
       isRecipesUIBound = true;
     },
@@ -479,9 +587,171 @@ export default {
       if (listModalCtl) { listModalCtl.destroy(); listModalCtl = null; }
       document.getElementById('DH-Magic-Recipe-cont')?.remove();
   
+      unbindCopyButtonListener();
       unbindSaveRecipeTrigger();
       unbindListModalDelegates();
       unbindOpenListModal();         
       isRecipesUIBound = false;
+    },
+
+    /**
+     * Trigger save recipe from side panel
+     */
+    triggerSaveRecipe() {
+      // Read clipboard data using execCommand
+      const input = document.createElement('input');
+      input.style.position = 'fixed';
+      input.style.left = '-9999px';
+      input.style.top = '-9999px';
+      document.body.appendChild(input);
+      
+      try {
+        input.focus();
+        const success = document.execCommand('paste');
+        
+        if (!success) {
+          DHref?.showNotification?.('Could not read clipboard. Make sure you clicked Copy on the canvas first.', '#ff9800');
+          return false;
+        }
+        
+        const clipboardData = input.value;
+        
+        if (!clipboardData) {
+          DHref?.showNotification?.('Clipboard is empty. Please copy tiles first (click Copy to Clipboard on the canvas)', '#ff9800');
+          return false;
+        }
+        
+        try {
+          let jsonData = JSON.parse(clipboardData);
+          console.log('Got clipboard data via execCommand, opening save modal...');
+          saveMagicETLRecipe(jsonData);
+          return true;
+        } catch (err) {
+          console.error('Error parsing clipboard data:', err);
+          DHref?.showNotification?.('Clipboard does not contain valid recipe data.', '#ed3737');
+          return false;
+        }
+      } catch (err) {
+        console.error('Error reading clipboard:', err);
+        DHref?.showNotification?.('Error reading clipboard.', '#ed3737');
+        return false;
+      } finally {
+        document.body.removeChild(input);
+      }
+    },
+
+    /**
+     * Insert recipe data directly (from side panel)
+     */
+    insertRecipeData(jsonData) {
+      if (!jsonData) {
+        console.warn('No recipe data provided to insertRecipeData');
+        DHref?.showNotification?.('No recipe data provided', '#ed3737');
+        return false;
+      }
+      
+      try {
+        let recipeData = JSON.parse(JSON.stringify(jsonData));
+        if (recipeData.data?.length && recipeData.data[0].name) {
+          recipeData.data[0].name += ' - DH-Panel';
+        }
+        const recipeJSON = JSON.stringify(recipeData, null, 2);
+
+        // Set guards immediately
+        insertingRecipeNow = true;
+        setSuppress(1400);
+
+        navigator.clipboard.writeText(recipeJSON).then(() => {
+          console.log('Recipe copied to clipboard, executing paste...');
+          
+          // Delay paste to ensure canvas is ready
+          setTimeout(() => {
+            document.execCommand('paste');
+            console.log('Paste command executed');
+
+            // Center on newly-added nodes
+            const host = document.querySelector('#innerCanvas') || document.body;
+            const observer = new MutationObserver((mutations) => {
+              console.log('DOM mutations detected, looking for new nodes...');
+              
+              const container = document.querySelector('[class^="DfScroller_container_"]');
+              if (!container) {
+                console.warn('Could not find scroll container');
+                insertingRecipeNow = false;
+                return;
+              }
+
+              const rects = [];
+              for (const m of mutations) {
+                for (const node of m.addedNodes) {
+                  if (!(node instanceof Element)) continue;
+                  const addedNodes = node.matches('.react-flow__node')
+                    ? [node]
+                    : Array.from(node.querySelectorAll('.react-flow__node'));
+                  for (const n of addedNodes) {
+                    const r = n.getBoundingClientRect();
+                    if (r.width > 0 && r.height > 0) {
+                      rects.push(r);
+                      console.log('Found new node:', n);
+                    }
+                  }
+                }
+              }
+              
+              if (!rects.length) {
+                console.log('No new nodes found yet, continuing to observe...');
+                return;
+              }
+
+              console.log(`Found ${rects.length} new nodes, centering...`);
+
+              // Calculate center point of all new nodes
+              const bbox = rects.reduce((b, r) => ({
+                left:   Math.min(b.left,   r.left),
+                top:    Math.min(b.top,    r.top),
+                right:  Math.max(b.right,  r.right),
+                bottom: Math.max(b.bottom, r.bottom),
+              }), { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity });
+
+              const cRect = container.getBoundingClientRect();
+              const bboxCx = (bbox.left + bbox.right) / 2;
+              const bboxCy = (bbox.top  + bbox.bottom) / 2;
+              const viewCx = (cRect.left + cRect.right) / 2;
+              const viewCy = (cRect.top  + cRect.bottom) / 2;
+
+              // Scroll to center new nodes
+              container.scrollLeft += (bboxCx - viewCx);
+              container.scrollTop  += (bboxCy - viewCy);
+
+              // Focus on the newly added tile
+              const newTile = Array.from(document.querySelectorAll('[class^="DfNode_actionName_"]'))
+                .find(el => el.textContent.includes(' - DH-Panel'));
+              const nameEl = newTile || document.querySelector('[class^="DfNode_actionName_"]');
+              if (nameEl) {
+                console.log('Clicking on new tile:', nameEl.textContent);
+                nameEl.click();
+              }
+
+              observer.disconnect();
+              insertingRecipeNow = false;
+              console.log('Recipe insertion complete!');
+              DHref?.showNotification?.('Recipe inserted successfully!', '#4CAF50');
+            });
+
+            observer.observe(host, { childList: true, subtree: true });
+          }, 50);
+        }).catch(err => {
+          insertingRecipeNow = false;
+          console.error('Failed to copy recipe to clipboard:', err);
+          DHref?.showNotification?.('Failed to copy recipe to clipboard. Make sure the page has focus.', '#ed3737');
+        });
+        
+        return true;
+      } catch (err) {
+        insertingRecipeNow = false;
+        console.error('Error preparing recipe data:', err);
+        DHref?.showNotification?.('Error preparing recipe data', '#ed3737');
+        return false;
+      }
     }
   };
