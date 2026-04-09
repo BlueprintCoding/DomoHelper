@@ -1,5 +1,12 @@
 // content/content-main.js
 
+// Signal that content script is loading - set IMMEDIATELY
+console.log('[Content Main] Module loading...');
+window.domoHelperContentScriptReady = false;
+
+// Context validity flag - used to prevent stale listeners from responding
+window.__domoHelperContentMainValid = false;
+
 // === PAGE DETECTION MODULE ===
 import PageDetector from './modules/page-detector.js';
 
@@ -129,16 +136,38 @@ const DH = {
     if (loadedForThisUrl) return;
     loadedForThisUrl = true;
   
-    // Shared settings defaults
-    let currentSettings = {
-      enabled: true,
-      removeLinks: false,
-      forceVersionNotes: true,
-      minWords: 5
-    };
-  
-    // Fetch stored settings and then init features
-    chrome.storage.local.get(['enabled', 'removeLinks', 'forceVersionNotes', 'minWords'], async (settings) => {
+    try {
+      // Check if extension context is still valid
+      if (!chrome || !chrome.runtime || !chrome.runtime.id) {
+        console.log('[Content Main] Extension context not available, skipping feature load');
+        return;
+      }
+
+      // Shared settings defaults
+      let currentSettings = {
+        enabled: true,
+        removeLinks: false,
+        forceVersionNotes: true,
+        minWords: 5
+      };
+    
+      // Fetch stored settings using promise wrapper
+      const settings = await new Promise((resolve) => {
+        try {
+          chrome.storage.local.get(['enabled', 'removeLinks', 'forceVersionNotes', 'minWords'], (result) => {
+            if (chrome.runtime.lastError) {
+              console.warn('[Content Main] Could not fetch settings:', chrome.runtime.lastError.message);
+              resolve({});
+            } else {
+              resolve(result || {});
+            }
+          });
+        } catch (e) {
+          console.warn('[Content Main] Storage API call failed:', e.message);
+          resolve({});
+        }
+      });
+
       currentSettings = {
         enabled: settings.enabled !== undefined ? settings.enabled : currentSettings.enabled,
         removeLinks: settings.removeLinks !== undefined ? settings.removeLinks : currentSettings.removeLinks,
@@ -148,70 +177,95 @@ const DH = {
   
       // PAGE features
       if (PageDetector.isPage()) {
-        // Inject page CSS
-        const css = document.createElement('link');
-        css.rel = 'stylesheet';
-        css.type = 'text/css';
-        css.href = chrome.runtime.getURL('css/dh-page-style.css');
-        document.head.appendChild(css);
-  
-        // Full text modal feature
-        featureModules.pageFullText = (await import(chrome.runtime.getURL('content/features/feature-page-fulltext.js'))).default;
-        featureModules.pageFullText.init({ DH, settings: currentSettings, PageDetector });
-  
-        // "Jump to:" body navigation
-        featureModules.pageJumpTo = (await import(chrome.runtime.getURL('content/features/feature-page-jump-to.js'))).default;
-        featureModules.pageJumpTo.init({ DH, PageDetector });
+        try {
+          // Inject page CSS
+          const css = document.createElement('link');
+          css.rel = 'stylesheet';
+          css.type = 'text/css';
+          css.href = chrome.runtime.getURL('css/dh-page-style.css');
+          document.head.appendChild(css);
+    
+          // Full text modal feature
+          featureModules.pageFullText = (await import(chrome.runtime.getURL('content/features/feature-page-fulltext.js'))).default;
+          featureModules.pageFullText.init({ DH, settings: currentSettings, PageDetector });
+    
+          // "Jump to:" body navigation
+          featureModules.pageJumpTo = (await import(chrome.runtime.getURL('content/features/feature-page-jump-to.js'))).default;
+          featureModules.pageJumpTo.init({ DH, PageDetector });
+        } catch (error) {
+          console.error('[Content Main] Error loading page features:', error.message);
+        }
       }
   
       // GRAPH features (Magic ETL)
       if (PageDetector.isMagicETL()) {
-        // Inject graph CSS
-        const css = document.createElement('link');
-        css.rel = 'stylesheet';
-        css.type = 'text/css';
-        css.href = chrome.runtime.getURL('css/dh-graph-style.css');
-        document.head.appendChild(css);
-  
-        // Magic ETL recipes (UI + storage + insertion)
-        featureModules.magicRecipes = (await import(chrome.runtime.getURL('content/features/feature-magic-recipes.js'))).default;
-        featureModules.magicRecipes.init({ DH, PageDetector });
-  
-        // Domo Helper menu in sidebar
-        featureModules.graphMenu = (await import(chrome.runtime.getURL('content/features/feature-graph-menu.js'))).default;
-        featureModules.graphMenu.init({ DH, PageDetector });
+        try {
+          // Inject graph CSS
+          const css = document.createElement('link');
+          css.rel = 'stylesheet';
+          css.type = 'text/css';
+          css.href = chrome.runtime.getURL('css/dh-graph-style.css');
+          document.head.appendChild(css);
+    
+          // Magic ETL recipes (UI + storage + insertion)
+          featureModules.magicRecipes = (await import(chrome.runtime.getURL('content/features/feature-magic-recipes.js'))).default;
+          featureModules.magicRecipes.init({ DH, PageDetector });
+    
+          // Domo Helper menu in sidebar
+          featureModules.graphMenu = (await import(chrome.runtime.getURL('content/features/feature-graph-menu.js'))).default;
+          featureModules.graphMenu.init({ DH, PageDetector });
 
-        // Select Columns reorder functionality
-        featureModules.selectColumnsReorder = (await import(chrome.runtime.getURL('content/features/feature-select-columns-reorder.js'))).default;
-        featureModules.selectColumnsReorder.init({ DH, PageDetector });
+          // Select Columns reorder functionality
+          featureModules.selectColumnsReorder = (await import(chrome.runtime.getURL('content/features/feature-select-columns-reorder.js'))).default;
+          featureModules.selectColumnsReorder.init({ DH, PageDetector });
 
-        // Select Columns rename functionality
-        featureModules.selectColumnsRename = (await import(chrome.runtime.getURL('content/features/feature-select-columns-rename.js'))).default;
-        featureModules.selectColumnsRename.init({ DH, PageDetector });
+          // Select Columns rename functionality
+          featureModules.selectColumnsRename = (await import(chrome.runtime.getURL('content/features/feature-select-columns-rename.js'))).default;
+          featureModules.selectColumnsRename.init({ DH, PageDetector });
 
-        // Column Search functionality
-        featureModules.columnSearch = (await import(chrome.runtime.getURL('content/features/feature-column-search.js'))).default;
-        console.log('[Content Main] Column Search feature imported successfully');
-        featureModules.columnSearch.init({ DH, PageDetector });
-        console.log('[Content Main] Column Search feature initialized');
+          // Column Search functionality
+          featureModules.columnSearch = (await import(chrome.runtime.getURL('content/features/feature-column-search.js'))).default;
+          console.log('[Content Main] Column Search feature imported successfully');
+          featureModules.columnSearch.init({ DH, PageDetector });
+          console.log('[Content Main] Column Search feature initialized');
+
+          // Node Alignment functionality
+          featureModules.nodeAlign = (await import(chrome.runtime.getURL('content/features/feature-node-align.js'))).default;
+          featureModules.nodeAlign.init();
+          console.log('[Content Main] Node Align feature initialized');
+        } catch (error) {
+          console.error('[Content Main] Error loading Magic ETL features:', error.message);
+        }
       }
   
       // Version Notes enforcement (applies to SQL Author + Magic ETL Graph)
       if (PageDetector.isSQLAuthor() || PageDetector.isMagicETL()) {
-        featureModules.versionNotes = (await import(chrome.runtime.getURL('content/features/feature-version-notes.js'))).default;
-        featureModules.versionNotes.init({ 
-          DH, 
-          PageDetector,
-          isAuthor: PageDetector.isSQLAuthor(),
-          isGraph: PageDetector.isMagicETL(),
-          settings: currentSettings 
-        });
+        try {
+          featureModules.versionNotes = (await import(chrome.runtime.getURL('content/features/feature-version-notes.js'))).default;
+          featureModules.versionNotes.init({ 
+            DH, 
+            PageDetector,
+            isAuthor: PageDetector.isSQLAuthor(),
+            isGraph: PageDetector.isMagicETL(),
+            settings: currentSettings 
+          });
+        } catch (error) {
+          console.error('[Content Main] Error loading version notes feature:', error.message);
+        }
       }
-    });
+    } catch (error) {
+      console.error('[Content Main] Fatal error in loadFeaturesForPage:', error.message);
+      loadedForThisUrl = false;
+    }
   }
   
   // Set up message listener IMMEDIATELY (outside loadFeaturesForPage so it's available right away)
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    // Guard against stale listeners from old execution contexts
+    if (!window.__domoHelperContentMainValid) {
+      return false; // Silently ignore, don't respond
+    }
+    
     console.log('[Content Main] Received message:', message);
     
     // Health check - verify content script is ready
@@ -265,7 +319,7 @@ const DH = {
       console.log('[Content Main] INSERT_MAGIC_RECIPE received');
       try {
         if (featureModules.magicRecipes?.insertRecipeData) {
-          const result = featureModules.magicRecipes.insertRecipeData(message.recipeData);
+          const result = featureModules.magicRecipes.insertRecipeData(message.recipeData, message.recipeTitle);
           sendResponse({ success: result });
         } else {
           sendResponse({ success: false, error: 'Magic Recipes not initialized' });
@@ -312,6 +366,79 @@ const DH = {
       return true; // Return true to keep channel open for async response
     }
 
+    // Handle node alignment debug requests
+    if (message.action === 'NODE_ALIGN_DEBUG') {
+      console.log('[Content Main] NODE_ALIGN_DEBUG received');
+      try {
+        if (featureModules.nodeAlign && featureModules.nodeAlign.inspectNodeDragState) {
+          const debugInfo = featureModules.nodeAlign.inspectNodeDragState();
+          sendResponse({ success: true, debugInfo });
+        } else {
+          sendResponse({ success: false, error: 'Node Align feature not properly initialized' });
+        }
+      } catch (err) {
+        console.error('[Content Main] Error in NODE_ALIGN_DEBUG:', err);
+        sendResponse({ success: false, error: err.message });
+      }
+      return true;
+    }
+
+    // Handle node alignment requests
+    if (message.action === 'NODE_ALIGN') {
+      console.log('[Content Main] NODE_ALIGN received:', message.alignAction);
+      
+      try {
+        if (featureModules.nodeAlign) {
+          const action = message.alignAction;
+          
+          // Use async IIFE to handle async alignment operations
+          (async () => {
+            let success = false;
+            let resultMessage = '';
+            
+            try {
+              switch(action) {
+                case 'centerVertically':
+                  success = await featureModules.nodeAlign.centerNodesVertically();
+                  resultMessage = 'Nodes centered vertically';
+                  break;
+                case 'centerHorizontally':
+                  success = await featureModules.nodeAlign.centerNodesHorizontally();
+                  resultMessage = 'Nodes centered horizontally';
+                  break;
+                default:
+                  success = false;
+                  resultMessage = 'Unknown alignment action';
+              }
+              
+              try {
+                sendResponse({
+                  success: success,
+                  message: resultMessage,
+                  error: success ? null : 'Alignment failed. Select at least 2 nodes (3 for distribution).'
+                });
+              } catch (e) {
+                console.warn('[Content Main] Could not send alignment response:', e.message);
+              }
+            } catch (err) {
+              console.error('[Content Main] Error during alignment:', err);
+              try {
+                sendResponse({ success: false, error: err.message });
+              } catch (e) {
+                console.warn('[Content Main] Could not send error response:', e.message);
+              }
+            }
+          })();
+        } else {
+          sendResponse({ success: false, error: 'Node Align feature not initialized' });
+        }
+      } catch (err) {
+        console.error('[Content Main] Error in NODE_ALIGN:', err);
+        sendResponse({ success: false, error: err.message });
+      }
+      return true;
+    }
+
     // Handle tile highlight requests
     if (message.action === 'HIGHLIGHT_TILE') {
       console.log('[Content Main] HIGHLIGHT_TILE received:', message.tileId);
@@ -332,8 +459,16 @@ const DH = {
     return false; // No async response needed for other message types
   });
   
+  // Signal that content script is ready - message listener is now registered
+  window.domoHelperContentScriptReady = true;
+  window.__domoHelperContentMainValid = true; // Mark this context as valid
+  console.log('[Content Main] Message listener registered and ready');
+  
   // Cleanup when leaving relevant pages
   function cleanupAll() {
+    // Mark this context as invalid to prevent stale listeners from responding
+    window.__domoHelperContentMainValid = false;
+    
     featureModules.pageFullText?.cleanup?.();
     featureModules.pageJumpTo?.cleanup?.();
     featureModules.magicRecipes?.cleanup?.();
@@ -352,6 +487,17 @@ const DH = {
   PageDetector.startUrlMonitoring((newPageType, previousUrl) => {
     console.log(`[Content Main] URL changed from ${previousUrl} to ${window.location.href}, page type: ${newPageType}`);
     
+    // Notify background service worker to update context (new domo-toolkit pattern)
+    try {
+      if (chrome && chrome.runtime && chrome.runtime.id) {
+        chrome.runtime.sendMessage({ type: 'DETECT_PAGE_TYPE' }).catch(() => {
+          console.log('[Content Main] Background service worker not ready, retrying...');
+        });
+      }
+    } catch (error) {
+      console.log('[Content Main] Could not send message to background:', error.message);
+    }
+    
     // clean up if no longer relevant
     if (!PageDetector.isRelevant()) {
       cleanupAll();
@@ -367,6 +513,16 @@ const DH = {
   document.onreadystatechange = function () {
     if (document.readyState === 'complete') {
       console.log('Page Loaded & Domo Helper Active');
+      // Notify background service worker of initial page load (new domo-toolkit pattern)
+      try {
+        if (chrome && chrome.runtime && chrome.runtime.id) {
+          chrome.runtime.sendMessage({ type: 'DETECT_PAGE_TYPE' }).catch(() => {
+            console.log('[Content Main] Background service worker not ready for initial detection');
+          });
+        }
+      } catch (error) {
+        console.log('[Content Main] Could not send initial detection message:', error.message);
+      }
     }
   };
   

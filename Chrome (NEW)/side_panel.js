@@ -2,10 +2,308 @@
  * Side Panel Script - Migrated from Popup
  * 
  * All functionality from the popup has been migrated to the side panel.
- * This provides a persistent settings and tools interface with context-aware features.
+ * Implements domo-toolkit's reactive event-driven architecture:
+ * - Initial GET_TAB_CONTEXT on mount for current tab
+ * - Message listener for broadcasts from background
+ * - Tab activation listener for tab switches
+ * - Dependency on currentTabId ensures latest context in all listeners
  */
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Track active tab (CORE STATE - all listeners depend on this)
+    let currentTabId = null;
+    let currentDataflowId = null;
+    let messageListenerAttached = false;
+    let tabActivatedListenerAttached = false;
+    let handleContextBroadcast = null; // Store listener reference for removal
+    let contextWaitTimeout = null; // Track timeout for waiting on context
+    
+    // ========================================================================
+    // MESSAGE DISPLAY FUNCTION
+    // ========================================================================
+    
+    /**
+     * Display a message in the message area at the top of the context tab
+     * Replaces all alert() calls with in-panel notifications
+     */
+    function showMessage(text, type = 'info') {
+      const messageArea = document.getElementById('messageArea');
+      const messageContent = document.getElementById('messageContent');
+      
+      if (!messageArea || !messageContent) return;
+      
+      // Set message text
+      messageContent.textContent = text;
+      
+      // Set color based on type
+      const colorMap = {
+        'success': { bg: '#e8f5e9', border: '#4caf50', text: '#2e7d32' },
+        'error': { bg: '#ffebee', border: '#f44336', text: '#c62828' },
+        'warning': { bg: '#fff3e0', border: '#ff9800', text: '#e65100' },
+        'info': { bg: '#e3f2fd', border: '#2196f3', text: '#1565c0' }
+      };
+      
+      const colors = colorMap[type] || colorMap['info'];
+      messageArea.style.backgroundColor = colors.bg;
+      messageArea.style.borderLeftColor = colors.border;
+      messageContent.style.color = colors.text;
+      
+      // Show message
+      messageArea.style.display = 'block';
+      
+      // Auto-hide after 5 seconds (unless it's an error)
+      if (type !== 'error') {
+        setTimeout(() => {
+          messageArea.style.display = 'none';
+        }, 5000);
+      }
+    }
+    
+    /**
+     * Display a confirmation dialog in a modal
+     * Returns a Promise that resolves to true (OK) or false (Cancel)
+     */
+    function showConfirmation(title, message) {
+      return new Promise((resolve) => {
+        const modal = document.getElementById('confirmationModal');
+        const titleEl = document.getElementById('confirmationTitle');
+        const messageEl = document.getElementById('confirmationMessage');
+        const okBtn = document.getElementById('confirmationOkBtn');
+        const cancelBtn = document.getElementById('confirmationCancelBtn');
+        
+        if (!modal || !titleEl || !messageEl) return resolve(false);
+        
+        // Set content
+        titleEl.textContent = title;
+        messageEl.textContent = message;
+        
+        // Show modal
+        modal.style.display = 'flex';
+        
+        // Create handler functions with closure
+        const handleOk = () => {
+          cleanup();
+          resolve(true);
+        };
+        
+        const handleCancel = () => {
+          cleanup();
+          resolve(false);
+        };
+        
+        const cleanup = () => {
+          modal.style.display = 'none';
+          okBtn.removeEventListener('click', handleOk);
+          cancelBtn.removeEventListener('click', handleCancel);
+          document.removeEventListener('keydown', handleEsc);
+        };
+        
+        const handleEsc = (e) => {
+          if (e.key === 'Escape') {
+            handleCancel();
+          }
+        };
+        
+        // Add event listeners
+        okBtn.addEventListener('click', handleOk);
+        cancelBtn.addEventListener('click', handleCancel);
+        document.addEventListener('keydown', handleEsc);
+      });
+    }
+    
+    // ========================================================================
+    
+    /**
+     * Register message listener for context broadcasts
+     * IMPORTANT: Re-register when currentTabId changes to avoid stale closures
+     */
+    function registerMessageListener() {
+        // Remove old listener if attached
+        if (messageListenerAttached && handleContextBroadcast) {
+            chrome.runtime.onMessage.removeListener(handleContextBroadcast);
+            console.log('[Side Panel] Removed old message listener');
+        }
+        
+        // Create new listener with fresh currentTabId
+        handleContextBroadcast = (message, sender, sendResponse) => {
+            if (message.type === 'TAB_CONTEXT_UPDATED') {
+                console.log(`[Side Panel] Broadcast received for tab ${message.tabId}, current tab: ${currentTabId}`);
+                
+                // Only update if broadcast is for our current tab
+                if (message.tabId === currentTabId) {
+                    console.log('[Side Panel] Broadcast matches current tab, updating context');
+                    // Clear any pending wait timeout since we got the broadcast
+                    if (contextWaitTimeout) {
+                        clearTimeout(contextWaitTimeout);
+                        contextWaitTimeout = null;
+                    }
+                    handleContextUpdate(message.context);
+                } else {
+                    console.log(`[Side Panel] Broadcast ignored (different tab)`);
+                }
+                sendResponse({ received: true });
+                return true;
+            }
+            // Don't respond to other message types
+            return false;
+        };
+        
+        chrome.runtime.onMessage.addListener(handleContextBroadcast);
+        messageListenerAttached = true;
+        console.log(`[Side Panel] Registered message listener for tab ${currentTabId}`);
+    }
+    
+    /**
+     * Register tab activation listener for tab switches
+     * (Only register once, not dependent on currentTabId changing)
+     */
+    function registerTabActivationListener() {
+        if (tabActivatedListenerAttached) {
+            return; // Already registered
+        }
+        
+        const handleTabActivated = async (activeInfo) => {
+            console.log(`[Side Panel] Tab activated: ${activeInfo.tabId}`);
+            
+            try {
+                // Request context for newly activated tab
+                const response = await chrome.runtime.sendMessage({
+                    type: 'GET_TAB_CONTEXT',
+                    tabId: activeInfo.tabId
+                });
+                
+                if (response.success) {
+                    // Update our tracked tab ID
+                    currentTabId = activeInfo.tabId;
+                    
+                    // Re-register message listener with new tab ID
+                    registerMessageListener();
+                    
+                    // Clear UI state for new tab
+                    clearColumnSearchUI();
+                    
+                    // Check if context has a valid pageType
+                    if (response.context && response.context.pageType) {
+                        // Valid context - update immediately
+                        console.log(`[Side Panel] Tab has cached context: ${response.context.pageType}`);
+                        handleContextUpdate(response.context);
+                    } else if (response.context && response.context.error) {
+                        // Connection/detection error - background worker is detecting, wait for broadcast
+                        const isConnectionError = response.context.error.includes('Receiving end does not exist') ||
+                                                 response.context.error.includes('not connected') ||
+                                                 response.context.error.includes('Could not establish');
+                        
+                        if (isConnectionError) {
+                            console.log('[Side Panel] Tab context not available yet (connection error), waiting for background detection...');
+                            // Show loading state while waiting for background detection
+                            const placeholder = document.getElementById('contextPlaceholder');
+                            if (placeholder) {
+                                placeholder.innerHTML = '<p style="color: #999; font-size: 0.9em; text-align: center; padding: 20px 10px;">Loading page features...</p>';
+                                placeholder.style.display = 'block';
+                            }
+                            
+                            // Set a timeout - if no broadcast comes within 5 seconds, we'll try again
+                            // This handles cases where background detection is still retrying
+                            if (contextWaitTimeout) clearTimeout(contextWaitTimeout);
+                            contextWaitTimeout = setTimeout(() => {
+                                console.log('[Side Panel] Context wait timeout, retrying GET_TAB_CONTEXT...');
+                                contextWaitTimeout = null;
+                                
+                                // Try to get context again (may have been updated by now)
+                                chrome.runtime.sendMessage({
+                                    type: 'GET_TAB_CONTEXT',
+                                    tabId: currentTabId
+                                }).then(response => {
+                                    if (response?.context?.pageType) {
+                                        console.log('[Side Panel] Got context on retry:', response.context.pageType);
+                                        handleContextUpdate(response.context);
+                                    } else {
+                                        console.log('[Side Panel] Still no valid context after retry');
+                                        const placeholder2 = document.getElementById('contextPlaceholder');
+                                        if (placeholder2) {
+                                            placeholder2.innerHTML = '<p style="color: #999; font-size: 0.9em; text-align: center; padding: 20px 10px;">Unable to load page features. Try refreshing the page.</p>';
+                                        }
+                                    }
+                                }).catch(err => {
+                                    console.error('[Side Panel] Error retrying context:', err.message);
+                                });
+                            }, 5000);
+                            
+                            // Don't call initializeContextFeatures - let the broadcast update us
+                        } else {
+                            // Some other error, show it
+                            handleContextUpdate(response.context);
+                        }
+                    } else {
+                        // No error but also no valid pageType - unclear state
+                        handleContextUpdate(null);
+                    }
+                } else {
+                    console.log('[Side Panel] Failed to get context for activated tab');
+                }
+            } catch (error) {
+                console.error('[Side Panel] Error handling tab activation:', error);
+            }
+        };
+        
+        chrome.tabs.onActivated.addListener(handleTabActivated);
+        tabActivatedListenerAttached = true;
+        console.log('[Side Panel] Registered tab activation listener');
+    }
+    
+    // ========================================================================
+    // INITIAL LOAD - Get Context for Current Tab
+    // ========================================================================
+    
+    /**
+     * On mount: fetch context for the current active tab
+     */
+    async function initializeOnMount() {
+        console.log('[Side Panel] Initializing on mount');
+        
+        try {
+            // Get info about current tab
+            const tabs = await new Promise((resolve) => {
+                chrome.tabs.query({ active: true, currentWindow: true }, resolve);
+            });
+            
+            if (tabs.length === 0) {
+                console.log('[Side Panel] No active tab found');
+                return;
+            }
+            
+            const tab = tabs[0];
+            currentTabId = tab.id;
+            
+            console.log(`[Side Panel] Current tab: ${currentTabId}, url: ${tab.url}`);
+            
+            // Register listeners now that we have a tab ID
+            registerMessageListener();
+            registerTabActivationListener();
+            
+            // Request context for current tab from background
+            const response = await chrome.runtime.sendMessage({
+                type: 'GET_TAB_CONTEXT',
+                tabId: currentTabId
+            });
+            
+            console.log('[Side Panel] Initial context response:', response);
+            
+            if (response.success && response.context) {
+                handleContextUpdate(response.context);
+            } else {
+                handleContextUpdate(null);
+            }
+            
+        } catch (error) {
+            console.error('[Side Panel] Error during initialization:', error);
+        }
+    }
+    
+    // ========================================================================
+    // TAB SWITCHING FUNCTIONALITY
+    // ========================================================================
+    
     // Tab switching functionality
     const tabButtons = document.querySelectorAll('.tab-button');
     const tabContents = document.querySelectorAll('.tab-content');
@@ -24,40 +322,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Initialize context-aware features
-    initializeContextFeatures();
-
-    // Track active tab for search context awareness
-    let currentTabId = null;
-    let currentDataflowId = null;
-    
-    /**
-     * Monitor active tab changes to detect dataflow changes
-     */
-    function updateActiveTabContext() {
-        chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
-            if (tabs.length === 0) return;
-            
-            const tab = tabs[0];
-            const url = tab.url || '';
-            
-            // Extract dataflow ID from URL (e.g., /dataflows/516)
-            const flowMatch = url.match(/\/dataflows\/(\d+)/);
-            const dataflowId = flowMatch ? flowMatch[1] : null;
-            
-            // Check if we've switched to a different dataflow
-            if (dataflowId && dataflowId !== currentDataflowId) {
-                console.log(`[Side Panel] Dataflow changed from ${currentDataflowId} to ${dataflowId}`);
-                currentDataflowId = dataflowId;
-                
-                // Clear search results and errors when switching flows
-                clearColumnSearchUI();
-            }
-            
-            currentTabId = tab.id;
-        });
-    }
-    
     /**
      * Clear column search UI when switching flows
      */
@@ -78,19 +342,16 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('[Side Panel] Column search UI cleared for new dataflow');
     }
     
-    // Update active tab context on load
-    updateActiveTabContext();
-    initializeContextFeatures(); // Initial check
+    // ========================================================================
+    // INITIALIZE ON MOUNT
+    // ========================================================================
     
-    // Listen for active tab changes - re-initialize features for new tab
-    chrome.tabs.onActivated.addListener((activeInfo) => {
-        console.log('[Side Panel] Tab activated (ID:', activeInfo.tabId, '), re-checking page...');
-        updateActiveTabContext();
-        // Reset UI state for new tab
-        clearColumnSearchUI();
-        // Re-check if new tab is Magic ETL
-        initializeContextFeatures();
-    });
+    // Call initialization on page load
+    initializeOnMount();
+    
+    // ========================================================================
+    // FEATURE INITIALIZATION
+    // ========================================================================
     
     // Listen for URL changes and page loads within any tab
     chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
@@ -104,17 +365,25 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Check for URL changes (navigation)
                 if (changeInfo.url) {
                     console.log('[Side Panel] Active tab URL changed:', changeInfo.url);
-                    updateActiveTabContext();
                     clearColumnSearchUI();
-                    // Re-check if new URL is Magic ETL
-                    initializeContextFeatures();
+                    // Background worker will detect the new page type and broadcast result
+                    // Show loading message while detection happens
+                    const placeholder = document.getElementById('contextPlaceholder');
+                    if (placeholder) {
+                        placeholder.innerHTML = '<p style="color: #999; font-size: 0.9em; text-align: center; padding: 20px 10px;">Loading page features...</p>';
+                        placeholder.style.display = 'block';
+                    }
                 }
                 // Also check when page finish loading (handles refreshes)
                 else if (changeInfo.status === 'complete') {
                     console.log('[Side Panel] Active tab page loading complete');
-                    updateActiveTabContext();
-                    // Re-check features for refreshed page
-                    initializeContextFeatures();
+                    // Background worker will detect/update page type and broadcast
+                    const placeholder = document.getElementById('contextPlaceholder');
+                    if (placeholder && placeholder.style.display !== 'block') {
+                        // Only show loading if not already showing
+                        placeholder.innerHTML = '<p style="color: #999; font-size: 0.9em; text-align: center; padding: 20px 10px;">Loading page features...</p>';
+                        placeholder.style.display = 'block';
+                    }
                 }
             }
         });
@@ -122,6 +391,36 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Listen for copy detected signal from content script
     console.log('[Side Panel] Attaching storage listener...');
+    
+    // Track timer for auto-hiding suggestion actions
+    let suggestionActionsHideTimer = null;
+    
+    // Helper function to hide suggestion actions and message
+    function hideSuggestionActions() {
+        const copyDetectedMessage = document.getElementById('copyDetectedMessage');
+        const suggestionActions = document.getElementById('suggestionActionsSection');
+        
+        if (copyDetectedMessage) copyDetectedMessage.style.display = 'none';
+        if (suggestionActions) suggestionActions.style.display = 'none';
+        
+        // Clear the auto-hide timer if it exists
+        if (suggestionActionsHideTimer) {
+            clearTimeout(suggestionActionsHideTimer);
+            suggestionActionsHideTimer = null;
+        }
+        
+        console.log('[Side Panel] Suggestion actions hidden');
+    }
+    
+    // Attach dismiss button handler
+    const dismissBtn = document.getElementById('dismissSuggestionActionsBtn');
+    if (dismissBtn) {
+        dismissBtn.addEventListener('click', () => {
+            console.log('[Side Panel] Dismiss button clicked');
+            hideSuggestionActions();
+        });
+    }
+    
     chrome.storage.onChanged.addListener((changes, areaName) => {
         console.log('[Side Panel Storage Listener] Fired - areaName:', areaName, 'changes:', Object.keys(changes));
         
@@ -133,24 +432,39 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.log('[Side Panel] ✓ Copy detected signal received!', changes.copyDetected);
                 const copyDetectedMessage = document.getElementById('copyDetectedMessage');
                 const magicRecipesSection = document.getElementById('magicRecipesSection');
+                const suggestionActions = document.getElementById('suggestionActionsSection');
                 const placeholder = document.getElementById('contextPlaceholder');
                 
                 console.log('[Side Panel] Elements found:', {
                     copyDetectedMessage: !!copyDetectedMessage,
                     magicRecipesSection: !!magicRecipesSection,
+                    suggestionActions: !!suggestionActions,
                     placeholder: !!placeholder
                 });
                 
-                if (changes.copyDetected.newValue === true) {
-                    // Show the message and recipes section
+                // newValue is a timestamp (number) when copy detected, undefined when removed
+                const isDetected = typeof changes.copyDetected.newValue === 'number';
+                
+                if (isDetected) {
+                    // Show the message and suggestion actions
                     if (placeholder) placeholder.style.display = 'none';
                     if (magicRecipesSection) magicRecipesSection.style.display = 'block';
                     if (copyDetectedMessage) copyDetectedMessage.style.display = 'block';
+                    if (suggestionActions) suggestionActions.style.display = 'block';
                     console.log('[Side Panel] ✓ Copy detected UI shown');
-                } else if (changes.copyDetected.newValue === false) {
-                    // Hide the message only, keep recipes section visible
-                    if (copyDetectedMessage) copyDetectedMessage.style.display = 'none';
-                    console.log('[Side Panel] ✓ Copy detected message hidden');
+                    
+                    // Auto-hide after 20 seconds
+                    if (suggestionActionsHideTimer) {
+                        clearTimeout(suggestionActionsHideTimer);
+                    }
+                    suggestionActionsHideTimer = setTimeout(() => {
+                        console.log('[Side Panel] Auto-hiding suggestion actions after 20 seconds');
+                        hideSuggestionActions();
+                    }, 20000);
+                    
+                } else {
+                    // Hide when explicitly set to false OR when removed (newValue === undefined)
+                    hideSuggestionActions();
                 }
             }
         } else {
@@ -230,19 +544,19 @@ document.addEventListener('DOMContentLoaded', function() {
                         
                         if (chrome.runtime.lastError) {
                             console.error('Clear Analyzer Error:', chrome.runtime.lastError.message);
-                            alert('Error: ' + chrome.runtime.lastError.message + '\n\nMake sure:\n1. You are on the analyzer page\n2. The page is fully loaded\n3. There are columns to clear');
+                            showMessage('Error: ' + chrome.runtime.lastError.message + ' | Make sure: 1) You are on the analyzer page, 2) The page is fully loaded, 3) There are columns to clear', 'error');
                         } else if (response && response.success) {
                             if (response.count > 0) {
-                                alert(`Successfully cleared ${response.count} column${response.count !== 1 ? 's' : ''}!`);
+                                showMessage(`Successfully cleared ${response.count} column${response.count !== 1 ? 's' : ''}!`, 'success');
                             } else {
-                                alert('No columns found to clear. The analyzer may already be empty.');
+                                showMessage('No columns found to clear. The analyzer may already be empty.', 'warning');
                             }
                         } else {
-                            alert('No response from page. Make sure you are on the analyzer page.');
+                            showMessage('No response from page. Make sure you are on the analyzer page.', 'error');
                         }
                     });
                 } else {
-                    alert('This feature only works on https://bcpequity.domo.com/analyzer');
+                    showMessage('This feature only works on https://bcpequity.domo.com/analyzer', 'warning');
                     console.log('Current URL:', currentUrl);
                 }
             }
@@ -334,12 +648,19 @@ END`;
                     return resolve(null);
                 }
                 
-                console.log('[Side Panel] Requesting page type from content script...');
+                console.log('[Side Panel] Requesting page type from content script (tab', tab.id + ')...');
+                
+                // Add timeout to handle cases where content script is completely broken
+                const timeoutId = setTimeout(() => {
+                    console.log('[Side Panel] Message send timeout');
+                    resolve(null);
+                }, 3000);
                 
                 chrome.tabs.sendMessage(
                     tab.id,
                     { action: 'GET_PAGE_TYPE' },
                     (response) => {
+                        clearTimeout(timeoutId);
                         if (chrome.runtime.lastError) {
                             console.log('[Side Panel] Content script not ready:', chrome.runtime.lastError.message);
                             resolve(null);
@@ -357,8 +678,169 @@ END`;
     }
     
     /**
+     * Update the context display in the header
+     * Shows instance, page type, and object name/id
+     */
+    function updateContextDisplay(context) {
+        const contextDisplay = document.getElementById('contextInfoDisplay');
+        if (!contextDisplay) return;
+
+        if (!context || !context.pageType || !context.url) {
+            contextDisplay.classList.add('context-hidden');
+            return;
+        }
+
+        // Extract instance from URL
+        const instanceMatch = context.url.match(/https:\/\/([^.]+)\.domo\.com/);
+        const instance = instanceMatch ? instanceMatch[1] : 'unknown';
+
+        // Map page types to display names
+        const pageTypeDisplay = {
+            'MAGIC_ETL': '🔗 Magic ETL',
+            'SQL_AUTHOR': '📊 SQL Author',
+            'PAGE': '📄 Dashboard'
+        };
+
+        // Update chips
+        const instanceChip = document.getElementById('instanceChip');
+        const pageTypeChip = document.getElementById('pageTypeChip');
+        
+        if (instanceChip) {
+            instanceChip.textContent = instance.toUpperCase();
+            instanceChip.title = `Instance: ${instance}.domo.com`;
+        }
+        
+        if (pageTypeChip) {
+            pageTypeChip.textContent = pageTypeDisplay[context.pageType] || context.pageType;
+            pageTypeChip.title = `Page Type: ${context.pageType}`;
+        }
+
+        // Update object info if available (from PageDetector.describe() or DomoObject metadata)
+        const contextName = document.getElementById('contextObjectName');
+        const contextId = document.getElementById('contextObjectId');
+        
+        let displayName = null;
+        let displayId = null;
+        
+        // Try to get object name from DomoObject metadata (domo-toolkit pattern)
+        if (context.domoObject?.metadata?.name) {
+          displayName = context.domoObject.metadata.name;
+          displayId = context.domoObject.id;
+          console.log('[Side Panel] Using DomoObject name:', displayName);
+        }
+        // Try PageDetector's extracted object name
+        else if (context.description?.objectName) {
+          displayName = context.description.objectName;
+          console.log('[Side Panel] Using PageDetector objectName:', displayName);
+        }
+        // Fallback to type display
+        else if (context.description) {
+          const typeDisplay = context.description.isPage ? 'Dashboard Page' 
+                            : context.description.isMagicETL ? 'Magic ETL Flow'
+                            : context.description.isSQLAuthor ? 'SQL Query'
+                            : 'Domo Page';
+          displayName = typeDisplay;
+        }
+        
+        // Final fallback - just show page type
+        if (!displayName) {
+          displayName = context.pageType || 'Domo Page';
+        }
+        
+        if (contextName) {
+          contextName.textContent = displayName;
+        }
+        if (contextId) {
+          // Show the object ID if available
+          if (displayId) {
+            contextId.textContent = `ID: ${displayId}`;
+          } else {
+            // Try to extract ID from URL as fallback
+            const idMatch = context.url?.match(/\/(\d+)/);
+            if (idMatch) {
+              contextId.textContent = `ID: ${idMatch[1]}`;
+            } else {
+              contextId.textContent = '';
+            }
+          }
+        }
+
+        // Show the context display
+        contextDisplay.classList.remove('context-hidden');
+    }
+    
+    /**
+     * Handle context updates from background service worker
+     * This is called when the page type is detected or changed
+     */
+    function handleContextUpdate(context) {
+        if (!context) {
+            console.log('[Side Panel] No context available');
+            updateContextDisplay(null);
+            return;
+        }
+
+        // Extract page type from different context formats
+        let pageType = context.pageType; // Old format: simple { pageType: 'MAGIC_ETL' }
+        
+        // New format: DomoContext with domoObject.typeId
+        if (!pageType && context.domoObject?.typeId) {
+            // Map DomoContext typeId to page type
+            const typeIdMap = {
+                'MAGIC_ETL': 'MAGIC_ETL',
+                'DATAFLOW_TYPE': 'MAGIC_ETL',
+                'SQL_AUTHOR': 'SQL_AUTHOR',
+                'PAGE': 'PAGE',
+                'CARD': 'CARD',
+                'DATA_APP_VIEW': 'DATA_APP',
+                'WORKSHEET_VIEW': 'WORKSHEET'
+            };
+            pageType = typeIdMap[context.domoObject.typeId] || context.domoObject.typeId;
+        }
+
+        if (!pageType) {
+            console.log('[Side Panel] No valid page type in context:', context);
+            updateContextDisplay(null);
+            return;
+        }
+
+        console.log(`[Side Panel] ✓ Detected page type: ${pageType}`);
+        
+        // Update context display at top of panel with both old and new context formats
+        updateContextDisplay(context);
+        
+        // Clear old UI
+        clearColumnSearchUI();
+        
+        // Hide recipes section and show placeholder by default
+        const recipeSection = document.getElementById('magicRecipesSection');
+        const placeholder = document.getElementById('contextPlaceholder');
+        if (recipeSection) recipeSection.style.display = 'none';
+        
+        // Initialize features based on page type
+        if (pageType === 'MAGIC_ETL') {
+            // Hide placeholder and show recipes for Magic ETL
+            if (placeholder) placeholder.style.display = 'none';
+            initializeMagicRecipes();
+            initializeColumnSearch();
+        } else if (pageType === 'PAGE') {
+            // Show placeholder for dashboard pages
+            if (placeholder) placeholder.style.display = 'block';
+            console.log('[Side Panel] PAGE detected (no features for dashboard pages yet)');
+        } else if (pageType === 'SQL_AUTHOR') {
+            // Show placeholder for SQL pages
+            if (placeholder) placeholder.style.display = 'block';
+            console.log('[Side Panel] SQL_AUTHOR detected (version notes handled by content script)');
+        } else {
+            // Show placeholder for unknown types
+            if (placeholder) placeholder.style.display = 'block';
+            console.log('[Side Panel] Unknown page type:', pageType);
+        }
+    }
+    
+    /**
      * Initialize context-aware features based on current page type
-     * Uses retries with exponential backoff if content script not immediately ready
+     * Uses background service worker cached context (new domo-toolkit pattern)
      */
     async function initializeContextFeatures() {
         // First check if we're on a Domo page at all
@@ -393,28 +875,35 @@ END`;
             return;
         }
 
-        // On relevant Domo page - try to get page type with retries
+        // Try to get cached context from background service worker first
+        try {
+            const tabId = tabs[0].id;
+            const response = await chrome.runtime.sendMessage({ type: 'GET_TAB_CONTEXT', tabId });
+            if (response?.context?.pageType) {
+                console.log('[Side Panel] Using cached context from background:', response.context.pageType);
+                handleContextUpdate(response.context);
+                return;
+            }
+        } catch (error) {
+            console.log('[Side Panel] Could not get cached context:', error.message);
+        }
+
+        // Fallback: Direct polling from content script if cache miss or empty
+        // This handles fast init before background detection completes
         let retries = 0;
         const maxRetries = 5;
         const retryDelay = 500; // ms
+        const initialDelay = 500; // ms - shorter since we have background detection helping now
+        
+        // Wait initial delay before first attempt
+        await new Promise(r => setTimeout(r, initialDelay));
         
         while (retries < maxRetries) {
             const pageType = await getPageTypeFromContentScript();
             
             if (pageType) {
-                console.log(`[Side Panel] ✓ Detected page type: ${pageType}`);
-                
-                // Initialize features based on page type
-                if (pageType === 'MAGIC_ETL') {
-                    initializeMagicRecipes();
-                    initializeColumnSearch();
-                } else if (pageType === 'PAGE') {
-                    console.log('[Side Panel] PAGE detected (no features for dashboard pages yet)');
-                } else if (pageType === 'SQL_AUTHOR') {
-                    console.log('[Side Panel] SQL_AUTHOR detected (version notes handled by content script)');
-                } else {
-                    console.log('[Side Panel] Unknown page type:', pageType);
-                }
+                console.log(`[Side Panel] ✓ Direct detection of page type: ${pageType}`);
+                handleContextUpdate({ pageType });
                 return; // Success, exit retry loop
             }
             
@@ -432,6 +921,19 @@ END`;
             placeholder.innerHTML = '<p style="color: #999; font-size: 0.9em;">Unable to initialize. Please refresh the page.</p>';
         }
     }
+    
+    /**
+     * Listen for context changes from content script
+     * This triggers when user navigates within Magic ETL
+     */
+    function listenForContextChanges() {
+        chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+            if (request.type === 'CONTEXT_UPDATE') {
+                console.log('[Side Panel] Received context update from content script:', request.context);
+                handleContextUpdate(request.context);
+            }
+        });
+    }
 
     /**
      * Initialize Magic Recipes Context
@@ -441,21 +943,41 @@ END`;
         const placeholder = document.getElementById('contextPlaceholder');
         const recipesList = document.getElementById('recipesList');
         const saveRecipeBtn = document.getElementById('saveRecipeBtn');
+        const suggestionActions = document.getElementById('suggestionActionsSection');
         
         console.log('initializeMagicRecipes called');
         console.log('saveRecipeBtn element:', saveRecipeBtn);
         
         if (!recipeSection) return;
         
-        // Keep recipes section hidden until copy is detected
-        // The storage listener will show it when copyDetected flag is set
+        // Show the magic recipes section and hide the placeholder
+        recipeSection.style.display = 'block';
+        if (placeholder) {
+            placeholder.style.display = 'none';
+        }
         
-        // Load and display recipes initially (in background, they'll be visible after copy detected)
+        // Keep suggestion actions hidden initially - only show when user copies to clipboard
+        if (suggestionActions) {
+            suggestionActions.style.display = 'none';
+        }
+        
+        // Load and display recipes initially
         loadMagicRecipes(recipesList);
+        setupRecipeToggle();
+        setupColumnSearchToggle();
+        
+        // Initialize node alignment (only visible on Magic ETL pages)
+        initializeNodeAlignmentFeature();
         
         // Save recipe button handler
         saveRecipeBtn.addEventListener('click', function() {
             console.log('Save Recipe button clicked!');
+            
+            // Hide suggestion actions
+            const suggestionActions = document.getElementById('suggestionActionsSection');
+            if (suggestionActions) {
+                suggestionActions.style.display = 'none';
+            }
             
             // Request clipboard data from content script
             chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
@@ -465,7 +987,7 @@ END`;
                     }, function(response) {
                         if (chrome.runtime.lastError) {
                             console.error('Error reading clipboard:', chrome.runtime.lastError.message);
-                            alert('Could not read clipboard. Make sure you clicked Copy on the canvas first.');
+                            showMessage('Could not read clipboard. Make sure you clicked Copy on the canvas first.', 'error');
                         } else if (response && response.success && response.clipboardData) {
                             try {
                                 // Validate JSON
@@ -492,10 +1014,10 @@ END`;
                                 console.log('Recipe form displayed');
                             } catch (err) {
                                 console.error('Invalid JSON in clipboard:', err);
-                                alert('Clipboard does not contain valid recipe data.');
+                                showMessage('Clipboard does not contain valid recipe data.', 'error');
                             }
                         } else {
-                            alert('Could not read clipboard. Make sure you clicked Copy on the canvas first.');
+                            showMessage('Could not read clipboard. Make sure you clicked Copy on the canvas first.', 'error');
                         }
                     });
                 }
@@ -508,12 +1030,12 @@ END`;
             const description = document.getElementById('recipeFormDescription').value.trim();
             
             if (!title || !description) {
-                alert('Please provide both a title and description.');
+                showMessage('Please provide both a title and description.', 'warning');
                 return;
             }
             
             if (!window.currentRecipeData) {
-                alert('No recipe data available. Please click Copy again.');
+                showMessage('No recipe data available. Please click Copy again.', 'error');
                 return;
             }
             
@@ -531,7 +1053,7 @@ END`;
                 chrome.storage.local.set({ MagicETLRecipes: recipes }, function() {
                     if (chrome.runtime.lastError) {
                         console.error('Error saving:', chrome.runtime.lastError);
-                        alert('Error saving recipe');
+                        showMessage('Error saving recipe: ' + chrome.runtime.lastError.message, 'error');
                     } else {
                         console.log('Recipe saved successfully!');
                         
@@ -542,7 +1064,7 @@ END`;
                         // Reset current recipe data
                         window.currentRecipeData = null;
                         
-                        alert('Recipe saved successfully!');
+                        showMessage('Recipe saved successfully!', 'success');
                     }
                 });
             });
@@ -552,6 +1074,190 @@ END`;
         document.getElementById('recipeFormCancelBtn').addEventListener('click', function() {
             document.getElementById('recipeFormSection').style.display = 'none';
             window.currentRecipeData = null;
+        });
+    }
+
+    /**
+     * Setup column search toggle
+     */
+    function setupColumnSearchToggle() {
+        const toggleBtn = document.getElementById('columnSearchToggleBtn');
+        const contentWrapper = document.getElementById('columnSearchContentWrapper');
+        const header = document.getElementById('columnSearchHeader');
+        
+        if (toggleBtn && contentWrapper && header) {
+            // Header click: expand if collapsed
+            header.addEventListener('click', function(e) {
+                if (e.target === toggleBtn) return; // Ignore button clicks
+                if (contentWrapper.style.display === 'none') {
+                    contentWrapper.style.display = 'block';
+                    toggleBtn.textContent = '−';
+                }
+            });
+            
+            // Button click: collapse if expanded
+            toggleBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (contentWrapper.style.display !== 'none') {
+                    contentWrapper.style.display = 'none';
+                    toggleBtn.textContent = '+';
+                }
+            });
+        }
+    }
+
+    /**
+     * Setup recipe section toggle
+     */
+    function setupRecipeToggle() {
+        const toggleBtn = document.getElementById('recipeToggleBtn');
+        const contentWrapper = document.getElementById('recipeContentWrapper');
+        const header = document.getElementById('recipeHeader');
+        
+        if (toggleBtn && contentWrapper && header) {
+            // Header click: expand if collapsed
+            header.addEventListener('click', function(e) {
+                if (e.target === toggleBtn) return; // Ignore button clicks
+                if (contentWrapper.style.display === 'none') {
+                    contentWrapper.style.display = 'block';
+                    toggleBtn.textContent = '−';
+                }
+            });
+            
+            // Button click: collapse if expanded
+            toggleBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (contentWrapper.style.display !== 'none') {
+                    contentWrapper.style.display = 'none';
+                    toggleBtn.textContent = '+';
+                }
+            });
+        }
+    }
+
+    /**
+     * Setup node alignment toggle
+     */
+    function setupNodeAlignmentToggle() {
+        const toggleBtn = document.getElementById('nodeAlignToggleBtn');
+        const contentWrapper = document.getElementById('nodeAlignContentWrapper');
+        const header = document.getElementById('nodeAlignHeader');
+        
+        if (toggleBtn && contentWrapper && header) {
+            // Header click: expand if collapsed
+            header.addEventListener('click', function(e) {
+                if (e.target === toggleBtn) return; // Ignore button clicks
+                if (contentWrapper.style.display === 'none') {
+                    contentWrapper.style.display = 'block';
+                    toggleBtn.textContent = '−';
+                }
+            });
+            
+            // Button click: collapse if expanded
+            toggleBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (contentWrapper.style.display !== 'none') {
+                    contentWrapper.style.display = 'none';
+                    toggleBtn.textContent = '+';
+                }
+            });
+        }
+    }
+
+    /**
+     * Initialize Node Alignment feature
+     */
+    function initializeNodeAlignment() {
+        const section = document.getElementById('nodeAlignmentSection');
+        if (!section) return;
+
+        // Buttons
+        const centerVerticalBtn = document.getElementById('centerVerticalBtn');
+        const centerHorizontalBtn = document.getElementById('centerHorizontalBtn');
+        const statusDiv = document.getElementById('nodeAlignStatus');
+
+        if (!centerVerticalBtn || !centerHorizontalBtn) return;
+
+        // Helper to show status message
+        const showStatus = (message, type = 'info') => {
+            if (statusDiv) {
+                statusDiv.textContent = message;
+                statusDiv.style.display = 'block';
+                if (type === 'success') {
+                    statusDiv.style.color = 'var(--accent-color)';
+                } else if (type === 'error') {
+                    statusDiv.style.color = '#f44336';
+                } else {
+                    statusDiv.style.color = 'var(--text-secondary)';
+                }
+                setTimeout(() => {
+                    statusDiv.style.display = 'none';
+                }, 3000);
+            }
+        };
+
+        // helper to send message to content script
+        const sendAlignmentMessage = (action) => {
+            chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+                if (tabs.length > 0) {
+                    chrome.tabs.sendMessage(tabs[0].id, {
+                        action: 'NODE_ALIGN',
+                        alignAction: action
+                    }, function(response) {
+                        if (chrome.runtime.lastError) {
+                            showStatus('Error: Content script not responding', 'error');
+                        } else if (response && response.success) {
+                            showStatus(response.message, 'success');
+                        } else if (response && response.error) {
+                            showStatus(response.error, 'error');
+                        }
+                    });
+                }
+            });
+        };
+
+        // Button event listeners
+        if (centerVerticalBtn) {
+            centerVerticalBtn.addEventListener('click', function() {
+                sendAlignmentMessage('centerVertically');
+            });
+        }
+
+        if (centerHorizontalBtn) {
+            centerHorizontalBtn.addEventListener('click', function() {
+                sendAlignmentMessage('centerHorizontally');
+            });
+        }
+    }
+
+    /**
+     * Initialize and setup node alignment feature
+     * Shows section only on Magic ETL pages
+     */
+    function initializeNodeAlignmentFeature() {
+        const section = document.getElementById('nodeAlignmentSection');
+        if (!section) return;
+
+        // Check if we're on a Magic ETL page
+        chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+            if (tabs.length > 0) {
+                chrome.tabs.sendMessage(tabs[0].id, { action: 'GET_PAGE_TYPE' }, function(response) {
+                    if (chrome.runtime.lastError) {
+                        // Content script not available
+                        section.style.display = 'none';
+                        return;
+                    }
+                    
+                    // Show section only on Magic ETL pages
+                    if (response && response.pageType === 'MAGIC_ETL') {
+                        section.style.display = 'block';
+                        setupNodeAlignmentToggle();
+                        initializeNodeAlignment();
+                    } else {
+                        section.style.display = 'none';
+                    }
+                });
+            }
         });
     }
 
@@ -586,7 +1292,8 @@ END`;
                         </div>
                         <div class="recipe-actions">
                             <button class="recipe-btn recipe-insert" data-recipe-title="${escapeHtml(recipe.title)}" title="Insert recipe">Insert</button>
-                            <button class="recipe-btn recipe-delete" data-recipe-title="${escapeHtml(recipe.title)}" title="Delete recipe">Delete</button>
+                            <button class="recipe-btn recipe-edit" data-recipe-title="${escapeHtml(recipe.title)}" title="Edit recipe">✏️</button>
+                            <button class="recipe-btn recipe-delete" data-recipe-title="${escapeHtml(recipe.title)}" title="Delete recipe">🗑️</button>
                         </div>
                     `;
                     
@@ -596,16 +1303,53 @@ END`;
                         insertMagicRecipe(title);
                     });
                     
-                    // Delete button handler
-                    item.querySelector('.recipe-delete').addEventListener('click', function() {
+                    // Edit button handler
+                    item.querySelector('.recipe-edit').addEventListener('click', function() {
                         const title = this.getAttribute('data-recipe-title');
-                        if (confirm(`Delete recipe "${title}"?`)) {
+                        editMagicRecipe(title, container);
+                    });
+                    
+                    // Delete button handler
+                    item.querySelector('.recipe-delete').addEventListener('click', async function() {
+                        const title = this.getAttribute('data-recipe-title');
+                        const confirmed = await showConfirmation('Delete Recipe', `Delete recipe "${title}"?`);
+                        if (confirmed) {
                             deleteMagicRecipe(title, container);
                         }
                     });
                     
                     container.appendChild(item);
                 });
+                
+                // Setup search functionality
+                const searchInput = document.querySelector('#recipeSearchInput');
+                const searchClearBtn = document.querySelector('#recipeSearchClearBtn');
+                
+                if (searchInput && !searchInput.hasAttribute('data-listener-attached')) {
+                    searchInput.setAttribute('data-listener-attached', 'true');
+                    
+                    searchInput.addEventListener('input', function() {
+                        const searchTerm = this.value.toLowerCase();
+                        searchClearBtn.style.display = searchTerm ? 'block' : 'none';
+                        
+                        const recipeItems = container.querySelectorAll('.recipe-item');
+                        recipeItems.forEach(item => {
+                            const title = item.querySelector('.recipe-title').textContent.toLowerCase();
+                            const description = item.querySelector('.recipe-description').textContent.toLowerCase();
+                            
+                            const matches = searchTerm === '' || title.includes(searchTerm) || description.includes(searchTerm);
+                            item.style.display = matches ? 'flex' : 'none';
+                        });
+                    });
+                    
+                    if (searchClearBtn) {
+                        searchClearBtn.addEventListener('click', function() {
+                            searchInput.value = '';
+                            searchInput.dispatchEvent(new Event('input'));
+                            searchInput.focus();
+                        });
+                    }
+                }
             }
         });
     }
@@ -619,7 +1363,7 @@ END`;
             const recipe = recipes[title];
             
             if (!recipe) {
-                alert('Recipe not found');
+                showMessage('Recipe not found', 'error');
                 return;
             }
             
@@ -633,19 +1377,123 @@ END`;
                         setTimeout(function() {
                             chrome.tabs.sendMessage(tabs[0].id, {
                                 action: 'INSERT_MAGIC_RECIPE',
-                                recipeData: recipe.recipe
+                                recipeData: recipe.recipe,
+                                recipeTitle: title
                             }, function(response) {
                                 if (chrome.runtime.lastError) {
                                     console.error('Error inserting recipe:', chrome.runtime.lastError.message);
-                                    alert('Could not insert recipe. Are you on a Magic ETL page?');
+                                    showMessage('Could not insert recipe. Are you on a Magic ETL page?', 'error');
                                 } else if (response && response.success) {
-                                    alert('Recipe inserted successfully!');
+                                    showMessage('Recipe inserted successfully!', 'success');
                                 }
                             });
                         }, 500);
                     });
                 }
             });
+        });
+    }
+
+    /**
+     * Edit a Magic Recipe
+     */
+    function editMagicRecipe(title, container) {
+        chrome.storage.local.get(['MagicETLRecipes'], function(result) {
+            const recipes = result.MagicETLRecipes || {};
+            const recipe = recipes[title];
+            
+            if (!recipe) {
+                showMessage('Recipe not found', 'error');
+                return;
+            }
+            
+            // Create edit modal
+            const modalOverlay = document.createElement('div');
+            modalOverlay.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.7); z-index: 10000; display: flex; align-items: center; justify-content: center;';
+            
+            const modalContent = document.createElement('div');
+            modalContent.style.cssText = 'background-color: var(--surface-dark); border-radius: 8px; padding: 24px; max-width: 500px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); width: 90%;';
+            
+            modalContent.innerHTML = `
+                <h3 style="margin-top: 0; color: var(--text-primary);">Edit Recipe</h3>
+                <div style="margin-bottom: 16px;">
+                    <label for="editRecipeTitle" style="display: block; color: var(--text-primary); margin-bottom: 6px; font-weight: 500;">Title:</label>
+                    <input type="text" id="editRecipeTitle" style="width: 100%; padding: 8px; background-color: var(--surface-light); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px; font-size: 13px; box-sizing: border-box;" value="${escapeHtml(recipe.title)}">
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <label for="editRecipeDescription" style="display: block; color: var(--text-primary); margin-bottom: 6px; font-weight: 500;">Description:</label>
+                    <textarea id="editRecipeDescription" style="width: 100%; padding: 8px; background-color: var(--surface-light); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px; font-size: 13px; box-sizing: border-box; min-height: 80px; resize: vertical;" placeholder="Enter recipe description">${escapeHtml(recipe.description)}</textarea>
+                </div>
+                <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                    <button id="editCancel" style="padding: 8px 16px; background-color: var(--surface-light); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer; font-size: 13px;">Cancel</button>
+                    <button id="editSave" style="padding: 8px 16px; background-color: var(--primary-color); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">Save</button>
+                </div>
+            `;
+            
+            modalOverlay.appendChild(modalContent);
+            document.body.appendChild(modalOverlay);
+            
+            const titleInput = document.getElementById('editRecipeTitle');
+            const descInput = document.getElementById('editRecipeDescription');
+            const cancelBtn = document.getElementById('editCancel');
+            const saveBtn = document.getElementById('editSave');
+            
+            // Focus on title input
+            titleInput.focus();
+            titleInput.select();
+            
+            // Cancel handler
+            cancelBtn.addEventListener('click', () => {
+                document.body.removeChild(modalOverlay);
+            });
+            
+            // Save handler
+            saveBtn.addEventListener('click', () => {
+                const newTitle = titleInput.value.trim();
+                const newDescription = descInput.value.trim();
+                
+                if (!newTitle) {
+                    showMessage('Title cannot be empty', 'warning');
+                    return;
+                }
+                
+                if (!newDescription) {
+                    showMessage('Description cannot be empty', 'warning');
+                    return;
+                }
+                
+                // If title changed, we need to delete old and create new
+                if (newTitle !== title) {
+                    delete recipes[title];
+                }
+                
+                // Save the updated recipe
+                recipes[newTitle] = {
+                    title: newTitle,
+                    description: newDescription,
+                    recipe: recipe.recipe,
+                    timestamp: recipe.timestamp
+                };
+                
+                chrome.storage.local.set({ MagicETLRecipes: recipes }, function() {
+                    if (chrome.runtime.lastError) {
+                        showMessage('Error saving recipe: ' + chrome.runtime.lastError.message, 'error');
+                    } else {
+                        showMessage('Recipe updated successfully!', 'success');
+                        document.body.removeChild(modalOverlay);
+                        loadMagicRecipes(container);
+                    }
+                });
+            });
+            
+            // Allow pressing Escape to close
+            const handleKeyDown = (e) => {
+                if (e.key === 'Escape') {
+                    document.removeEventListener('keydown', handleKeyDown);
+                    document.body.removeChild(modalOverlay);
+                }
+            };
+            document.addEventListener('keydown', handleKeyDown);
         });
     }
 
@@ -659,7 +1507,7 @@ END`;
             
             chrome.storage.local.set({ MagicETLRecipes: recipes }, function() {
                 if (chrome.runtime.lastError) {
-                    alert('Error deleting recipe');
+                    showMessage('Error deleting recipe: ' + chrome.runtime.lastError.message, 'error');
                 } else {
                     loadMagicRecipes(container);
                 }
@@ -725,12 +1573,14 @@ END`;
     function getFilterPreferences() {
         const caseSensitive = document.getElementById('filterCaseSensitive')?.checked ?? false;
         const exactMatch = document.getElementById('filterExactMatch')?.checked ?? false;
+        const searchTileNames = document.getElementById('filterTileNames')?.checked ?? false;
         const includeSelectColumns = document.getElementById('filterSelectColumns')?.checked ?? true;
         const includeInputOutput = document.getElementById('filterInputOutput')?.checked ?? true;
         
         return {
             caseSensitive,
             exactMatch,
+            searchTileNames,
             includeSelectColumns,
             includeInputOutput
         };
@@ -807,7 +1657,7 @@ END`;
         const columnName = searchInput.value.trim();
         
         if (!columnName) {
-            alert('Please enter a column name to search for.');
+            showMessage('Please enter a column name to search for.', 'warning');
             return;
         }
         

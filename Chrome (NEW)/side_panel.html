@@ -45,7 +45,7 @@
         
         .header {
             text-align: center;
-            border-bottom: 1px solid var(--border-color);
+            /* border-bottom: 1px solid var(--border-color); */
             padding: 5px;
             display: flex;
             gap: 10px;
@@ -75,6 +75,68 @@
             display: flex;
             align-items: center;
             justify-content: center;
+        }
+
+        /* Context Display Styling */
+        .context-display {
+            background-color: var(--surface-dark);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            padding: 12px;
+            margin-bottom: 12px;
+            transition: border-color 0.2s;
+        }
+
+        .context-display:hover {
+            border-color: #505050;
+        }
+
+        .context-label {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .context-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .context-chip {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 9px;
+            font-weight: 600;
+            white-space: nowrap;
+            cursor: help;
+        }
+
+        .context-chip:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .context-name {
+            font-size: 12px;
+            color: var(--text-primary);
+            font-weight: 600;
+            margin-bottom: 4px;
+            word-break: break-word;
+        }
+
+        .context-id {
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .context-hidden {
+            display: none;
         }
         
         .section {
@@ -313,8 +375,8 @@
         .tabs {
             display: flex;
             gap: 0;
-            border-bottom: 2px solid var(--border-color);
-            margin: 0 -16px 16px -16px;
+            /* border-bottom: 2px solid var(--border-color); */
+            margin: 0 0 16px 0;
             padding: 0 16px;
         }
 
@@ -332,6 +394,7 @@
             margin-bottom: -2px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
+            border-bottom-color: var(--border-color);
         }
 
         .tab-button:hover {
@@ -427,6 +490,16 @@
 
         .recipe-insert:hover {
             background-color: #45a049;
+            transform: translateY(-1px);
+        }
+
+        .recipe-edit {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .recipe-edit:hover {
+            background-color: var(--primary-hover);
             transform: translateY(-1px);
         }
 
@@ -609,6 +682,54 @@
             color: #888;
             font-size: 10px;
         }
+
+        /* Custom scrollbar for recipes list */
+        #recipesList {
+            scrollbar-width: thick;
+            scrollbar-color: var(--primary-color) var(--surface-dark);
+        }
+
+        #recipesList::-webkit-scrollbar {
+            width: 10px;
+        }
+
+        #recipesList::-webkit-scrollbar-track {
+            background: var(--surface-dark);
+            border-radius: 4px;
+        }
+
+        #recipesList::-webkit-scrollbar-thumb {
+            background: var(--primary-color);
+            border-radius: 4px;
+        }
+
+        #recipesList::-webkit-scrollbar-thumb:hover {
+            background: var(--primary-hover);
+        }
+
+        /* Recipe toggle button hover effect */
+        #recipeToggleBtn:hover {
+            color: var(--primary-color);
+        }
+
+        #recipeToggleBtn:active {
+            transform: scale(0.95);
+        }
+
+        /* Column Search toggle button hover effect */
+        #columnSearchToggleBtn:hover {
+            color: var(--primary-color);
+        }
+
+        #columnSearchToggleBtn:active {
+            transform: scale(0.95);
+        }
+
+        .context-header {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
     </style>
 </head>
 <body>
@@ -618,15 +739,34 @@
             <h1>Domo Helper</h1>
         </div>
 
+        <!-- Context Display Section -->
+        <div id="contextInfoDisplay" class="context-display context-hidden">
+            <div class="context-header">
+            <div class="context-label">Current Context</div>
+            <div class="context-chips">
+                <span id="instanceChip" class="context-chip" title="Domo Instance">---</span>
+                <span id="pageTypeChip" class="context-chip" title="Page Type">---</span>
+            </div>
+            </div>
+            <div id="contextObjectInfo">
+                <div class="context-name" id="contextObjectName">No object detected</div>
+                <div class="context-id" id="contextObjectId"></div>
+            </div>
+        </div>
+
         <!-- Tab Navigation -->
         <div class="tabs">
             <button class="tab-button active" data-tab="context">Context</button>
-            <button class="tab-button" data-tab="columnSearch">Search</button>
             <button class="tab-button" data-tab="settings">Settings</button>
         </div>
 
         <!-- Context Tab -->
         <div id="context" class="tab-content active">
+            <!-- Message Display Area -->
+            <div id="messageArea" style="display: none; padding: 12px; margin-bottom: 12px; border-radius: 6px; font-size: 13px; border-left: 4px solid; background-color: #f0f0f0; border-left-color: #666;">
+                <div id="messageContent" style="margin: 0;"></div>
+            </div>
+
             <div id="contextPlaceholder" class="context-placeholder">
                 <h2>📄 Page Context</h2>
                 <p>Context information about the current page will appear here.</p>
@@ -637,14 +777,19 @@
 
             <!-- Magic ETL Recipes Section (hidden by default) -->
             <div id="magicRecipesSection" style="display: none;">
-                <!-- Copy Detected Message -->
-                <div id="copyDetectedMessage" style="display: none; background-color: var(--success-color); border-radius: 6px; padding: 12px; margin-bottom: 12px; color: white; font-size: 13px; line-height: 1.5;">
-                    Tiles copied to clipboard! Click the button below to save as a recipe.
-                </div>
-
-                <!-- Suggestion Actions -->
-                <div class="section">
-                    <div class="section-title">Suggestion Actions</div>
+                <!-- Suggestion Actions (only shown when copy is detected) -->
+                <div id="suggestionActionsSection" style="display: none;" class="section">
+                    <!-- Copy Detected Message -->
+                    <div id="copyDetectedMessage" style="display: none; background-color: var(--success-color); border-radius: 6px; padding: 12px; margin-bottom: 12px; color: white; font-size: 13px; line-height: 1.5;">
+                        Tiles copied to clipboard! Click the button below to save as a recipe.
+                    </div>
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div class="section-title" style="margin: 0;">Suggestion Actions</div>
+                        <button id="dismissSuggestionActionsBtn" style="background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 18px; padding: 0; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; transition: color 0.2s;" title="Dismiss">
+                            ✕
+                        </button>
+                    </div>
                     <p class="description" style="margin-bottom: 12px;">Quick actions for the current page context.</p>
                     
                     <button id="saveRecipeBtn">
@@ -677,116 +822,145 @@
                     </div>
                 </div>
 
+                <!-- Column Search Section (Collapsible) -->
+                <div class="section">
+                    <div id="columnSearchHeader" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
+                        <div class="section-title" style="margin: 0;">🔍 Column Search</div>
+                        <button id="columnSearchToggleBtn" style="background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 20px; padding: 0; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; transition: color 0.2s;" title="Toggle column search" onclick="event.stopPropagation()">+</button>
+                    </div>
+                    
+                    <div id="columnSearchContentWrapper" style="display: none;">
+                        <div class="form-field">
+                            <!-- Search input with clear button inside -->
+                            <div style="position: relative; margin-bottom: 8px;">
+                                <input type="text" id="columnSearchInput" class="form-input" placeholder="Enter column name..." style="padding-right: 28px;">
+                                <button id="columnSearchClearBtn" class="form-button" style="position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-secondary); padding: 4px 4px; font-size: 16px; cursor: pointer; display: none;" title="Clear search">✕</button>
+                            </div>
+                            <button id="columnSearchBtn" class="form-button form-button-save" style="width: 100%; margin-bottom: 8px;">Search</button>
+                        </div>
+
+                        <!-- Filter Options -->
+                        <div style="margin-bottom: 8px; padding: 8px; background-color: var(--surface-light); border-radius: 4px;">
+                            <!-- Search Options -->
+                            <div style="margin-bottom: 8px;">
+                                <div style="font-size: 10px; color: var(--text-secondary); margin-bottom: 6px; font-weight: 600;">Search options:</div>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                                    <div class="setting-item">
+                                        <div class="checkbox-label">
+                                            <input type="checkbox" id="filterCaseSensitive">
+                                            <div class="label-text" style="margin: 0; font-size: 11px;">
+                                                <span>Case Sensitive</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="setting-item">
+                                        <div class="checkbox-label">
+                                            <input type="checkbox" id="filterExactMatch">
+                                            <div class="label-text" style="margin: 0; font-size: 11px;">
+                                                <span>Exact Match</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="setting-item">
+                                        <div class="checkbox-label">
+                                            <input type="checkbox" id="filterTileNames">
+                                            <div class="label-text" style="margin: 0; font-size: 11px;">
+                                                <span>Tile Names</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Tile Type Filters -->
+                            <div>
+                                <div style="font-size: 10px; color: var(--text-secondary); margin-bottom: 6px; font-weight: 600;">Include Tile Types in Results:</div>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                                    <div class="setting-item">
+                                        <div class="checkbox-label">
+                                            <input type="checkbox" id="filterSelectColumns" checked>
+                                            <div class="label-text" style="margin: 0; font-size: 11px;">
+                                                <span>Select Columns</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="setting-item">
+                                        <div class="checkbox-label">
+                                            <input type="checkbox" id="filterInputOutput" checked>
+                                            <div class="label-text" style="margin: 0; font-size: 11px;">
+                                                <span>Input/Output</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <p style="font-size: 12px; color: var(--text-secondary);">You must save your Magic ETL canvas before searching for columns or it will only search from the last save point.</p>
+
+                        <div id="searchStatus" style="font-size: 11px; color: var(--text-secondary); text-align: center; margin: 8px 0; display: none;">
+                            <span id="searchStatusText"></span>
+                        </div>
+
+                        <!-- Search Results Section -->
+                        <div id="searchResultsSection" style="display: none;">
+                            <div style="margin-top: 12px;">
+                                <div style="font-size: 12px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px;">Search Results</div>
+                                <p id="resultsCount" class="description" style="margin-bottom: 12px;"></p>
+                                
+                                <div id="tileResultsList" style="display: flex; flex-direction: column; gap: 8px;">
+                                    <!-- Tile results will be inserted here -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Empty Results Message -->
+                        <div id="noResultsMessage" style="display: none; text-align: center; padding: 12px;">
+                            <p style="margin: 0; color: var(--text-secondary); font-size: 12px;">
+                                No tiles found containing that column.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Magic ETL Recipes -->
                 <div class="section">
-                    <div class="section-title">Magic ETL Recipes</div>
-                    <p class="description" style="margin-bottom: 12px;">Saved recipes for quick insertion into your Magic ETL.</p>
+                    <div id="recipeHeader" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
+                        <div class="section-title" style="margin: 0;">✨ Magic ETL Recipes</div>
+                        <button id="recipeToggleBtn" style="background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 20px; padding: 0; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; transition: color 0.2s;" title="Toggle recipes" onclick="event.stopPropagation()">+</button>
+                    </div>
                     
-                    <div id="recipesList" style="display: flex; flex-direction: column; gap: 10px;">
-                        <!-- Recipes will be inserted here -->
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Column Search Tab -->
-        <div id="columnSearch" class="tab-content">
-            <div id="columnSearchPlaceholder" class="context-placeholder">
-                <h2>🔍 Column Search</h2>
-                <p>Not available on this page.</p>
-                <p style="margin-top: 12px; font-size: 12px; color: var(--text-secondary);">
-                    Open a Magic ETL canvas to search for columns across tiles.
-                </p>
-            </div>
-
-            <!-- Column Search UI (hidden by default) -->
-            <div id="columnSearchSection" style="display: none;">
-                <!-- Search Input Section -->
-                <div class="section">
-                    <div class="section-title">Search for Columns</div>
-                    <div class="form-field">
-                        <!-- Search input with clear button inside -->
-                        <div style="position: relative; margin-bottom: 8px;">
-                            <input type="text" id="columnSearchInput" class="form-input" placeholder="Enter column name..." style="padding-right: 28px;">
-                            <button id="columnSearchClearBtn" class="form-button" style="position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-secondary); padding: 4px 4px; font-size: 16px; cursor: pointer; display: none;" title="Clear search">✕</button>
-                        </div>
-                        <button id="columnSearchBtn" class="form-button form-button-save" style="width: 100%; margin-bottom: 8px;">Search</button>
-                    </div>
-
-                    <!-- Filter Options -->
-                    <div style="margin-bottom: 8px; padding: 8px; background-color: var(--surface-light); border-radius: 4px;">
-                        <!-- Search Options -->
-                        <div style="margin-bottom: 8px;">
-                            <div style="font-size: 10px; color: var(--text-secondary); margin-bottom: 6px; font-weight: 600;">Search options:</div>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
-                                <div class="setting-item">
-                                    <div class="checkbox-label">
-                                        <input type="checkbox" id="filterCaseSensitive">
-                                        <div class="label-text" style="margin: 0; font-size: 11px;">
-                                            <span>Case Sensitive</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="setting-item">
-                                    <div class="checkbox-label">
-                                        <input type="checkbox" id="filterExactMatch">
-                                        <div class="label-text" style="margin: 0; font-size: 11px;">
-                                            <span>Exact Match</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Tile Type Filters -->
-                        <div>
-                            <div style="font-size: 10px; color: var(--text-secondary); margin-bottom: 6px; font-weight: 600;">Include Tile Types in Results:</div>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
-                                <div class="setting-item">
-                                    <div class="checkbox-label">
-                                        <input type="checkbox" id="filterSelectColumns" checked>
-                                        <div class="label-text" style="margin: 0; font-size: 11px;">
-                                            <span>Select Columns</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="setting-item">
-                                    <div class="checkbox-label">
-                                        <input type="checkbox" id="filterInputOutput" checked>
-                                        <div class="label-text" style="margin: 0; font-size: 11px;">
-                                            <span>Input/Output</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <p>You must save your Magic ETL canvas before searching for columns or it will only search from the last save point.</p>
-
-                    <div id="searchStatus" style="font-size: 11px; color: var(--text-secondary); text-align: center; margin: 8px 0; display: none;">
-                        <span id="searchStatusText"></span>
-                    </div>
-                </div>
-
-                <!-- Search Results Section -->
-                <div id="searchResultsSection" style="display: none;">
-                    <div class="section">
-                        <div class="section-title">Search Results</div>
-                        <p id="resultsCount" class="description" style="margin-bottom: 12px;"></p>
+                    <div id="recipeContentWrapper" style="display: none;">
+                        <p class="description" style="margin-bottom: 12px;">Saved recipes for quick insertion into your Magic ETL.</p>
                         
-                        <div id="tileResultsList" style="display: flex; flex-direction: column; gap: 8px;">
-                            <!-- Tile results will be inserted here -->
+                        <!-- Search Bar -->
+                        <div style="position: relative; margin-bottom: 12px;">
+                            <input type="text" id="recipeSearchInput" class="form-input" placeholder="Search recipes by title or description..." style="padding-right: 28px;">
+                            <button id="recipeSearchClearBtn" class="form-button" style="position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-secondary); padding: 4px 4px; font-size: 16px; cursor: pointer; display: none;" title="Clear search">✕</button>
+                        </div>
+                        
+                        <div id="recipesList" style="display: flex; flex-direction: column; gap: 10px; max-height: 290px; overflow-y: auto; padding-right: 4px;">
+                            <!-- Recipes will be inserted here -->
                         </div>
                     </div>
                 </div>
 
-                <!-- Empty Results Message -->
-                <div id="noResultsMessage" style="display: none;">
-                    <div class="section" style="text-align: center; padding: 24px;">
-                        <p style="margin: 0; color: var(--text-secondary); font-size: 13px;">
-                            No tiles found containing that column.
-                        </p>
+                <!-- Node Alignment (Magic ETL Canvas) -->
+                <div class="section" id="nodeAlignmentSection" style="display: none;">
+                    <div id="nodeAlignHeader" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
+                        <div class="section-title" style="margin: 0;">⬆️⬅️ Node Alignment</div>
+                        <button id="nodeAlignToggleBtn" style="background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 20px; padding: 0; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; transition: color 0.2s;" title="Toggle node alignment" onclick="event.stopPropagation()">+</button>
+                    </div>
+                    
+                    <div id="nodeAlignContentWrapper" style="display: none;">
+                        <p class="description" style="margin-bottom: 12px;">Select nodes on the canvas and align them</p>
+                        
+                        <div id="nodeAlignButtons" style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                            <button id="centerVerticalBtn" class="form-button form-button-save" style="padding: 8px; font-size: 12px;" title="Center selected nodes vertically">Center V</button>
+                            <button id="centerHorizontalBtn" class="form-button form-button-save" style="padding: 8px; font-size: 12px;" title="Center selected nodes horizontally">Center H</button>
+                        </div>
+                        <p class="description"><strong>DO NOT MOVE YOUR MOUSE OVER THE CANVAS WHILE ALIGNING</strong></p>
+                        <div id="nodeAlignStatus" style="margin-top: 8px; padding: 8px; font-size: 11px; color: var(--text-secondary); text-align: center; display: none;"></div>
                     </div>
                 </div>
             </div>
@@ -868,6 +1042,18 @@
                     <textarea id="beastModeTemplate" readonly></textarea>
                     <button id="copyTemplate">Copy Template</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmationModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.7); z-index: 10000; align-items: center; justify-content: center;">
+        <div style="background-color: var(--surface-dark); border-radius: 8px; padding: 24px; max-width: 400px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);">
+            <h3 style="margin-bottom: 12px; color: var(--text-primary);" id="confirmationTitle">Confirm Action</h3>
+            <p style="margin-bottom: 20px; color: var(--text-secondary); line-height: 1.5;" id="confirmationMessage">Are you sure?</p>
+            <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                <button id="confirmationCancelBtn" style="padding: 8px 16px; background-color: var(--surface-light); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer; font-size: 13px;">Cancel</button>
+                <button id="confirmationOkBtn" style="padding: 8px 16px; background-color: var(--danger-color); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">Delete</button>
             </div>
         </div>
     </div>

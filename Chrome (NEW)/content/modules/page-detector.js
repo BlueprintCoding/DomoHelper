@@ -129,15 +129,54 @@ const PageDetector = {
    */
   describe() {
     const pageType = this.getPageType();
+    const objectName = this.getObjectName();
     return {
       url: window.location.href,
       pageType,
+      objectName,
       isPage: pageType === this.PAGE_TYPES.PAGE,
       isMagicETL: pageType === this.PAGE_TYPES.MAGIC_ETL,
       isSQLAuthor: pageType === this.PAGE_TYPES.SQL_AUTHOR,
       isUnknown: pageType === this.PAGE_TYPES.UNKNOWN,
       isRelevant: pageType !== this.PAGE_TYPES.UNKNOWN
     };
+  },
+  
+  /**
+   * Extract the object name from the page (e.g., ETL flow name, dashboard name)
+   * Looks for common Domo UI patterns
+   * 
+   * @returns {string | null} - Object name if found, null otherwise
+   */
+  getObjectName() {
+    try {
+      // Magic ETL: Look for graph toolbar title
+      const etlTitle = document.querySelector('[data-testid="topbar-title"]');
+      if (etlTitle && etlTitle.textContent) {
+        return etlTitle.textContent.trim();
+      }
+      
+      // Dashboard page: Look for page title
+      const pageTitle = document.querySelector('h1[class*="title"], .page-title, [class*="PageHeader"] h1');
+      if (pageTitle && pageTitle.textContent) {
+        return pageTitle.textContent.trim();
+      }
+      
+      // Fallback: Try common Domo title patterns
+      const titleEl = document.querySelector('title');
+      if (titleEl && titleEl.textContent) {
+        // Extract just the page name from "Page Name | Domo"
+        const match = titleEl.textContent.match(/^([^|]+)/);
+        if (match) {
+          return match[1].trim();
+        }
+      }
+      
+      return null;
+    } catch (e) {
+      console.error('[PageDetector] Error extracting object name:', e.message);
+      return null;
+    }
   },
   
   /**
@@ -159,7 +198,5 @@ const PageDetector = {
   }
 };
 
-// Export for module usage
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = PageDetector;
-}
+// Export as ES6 module (for use with import statements)
+export default PageDetector;

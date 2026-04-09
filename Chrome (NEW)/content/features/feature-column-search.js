@@ -119,8 +119,11 @@ function setupCanvasClickListener() {
       return;
     }
     
-    console.log('[Column Search] Canvas clicked, removing highlight');
-    removeHighlight();
+    // Only remove highlight if there's actually a tile highlighted
+    if (currentlyHighlightedTile || document.querySelector('.dh-column-search-highlight')) {
+      console.log('[Column Search] Canvas clicked, removing highlight');
+      removeHighlight();
+    }
   });
   
   console.log('[Column Search] Canvas click listener registered');
@@ -140,27 +143,22 @@ function init(ctx) {
   
   console.log('[Column Search] Attempting to fetch initial graph data...');
   
-  // Try to fetch graph data early so it's ready
+  // Try to fetch graph data early so it's ready (non-critical, silent failure)
   fetchGraphDataAsync().then(data => {
     if (data) {
       console.log('[Column Search] Graph data loaded successfully on init');
       console.log('[Column Search] Found', data.actions?.length || 0, 'tiles');
-    } else {
-      console.log('[Column Search] Graph data not available on init (page may still be loading)');
     }
-  }).catch(err => {
-    console.error('[Column Search] Error fetching initial graph data:', err);
+    // Silent failure on init - data will be fetched on-demand when user searches
+  }).catch(() => {
+    // Silent catch - initial fetch is non-critical, will retry on search
   });
+
+  // Set up canvas click listener
+  setupCanvasClickListener();
   
   // Set up mutation observer to watch for graph changes
   observeGraphChanges();
-  
-  // Set up canvas click listener to hide highlight when user clicks
-  setupCanvasClickListener();
-  
-  // Broadcast that feature is ready
-  window.dispatchEvent(new CustomEvent('dhColumnSearchReady'));
-  console.log('[Column Search] Feature ready');
 }
 
 /**
@@ -335,6 +333,7 @@ function analyzeColumnsInTiles(columnName, filterPrefs) {
   const filters = filterPrefs || {
     caseSensitive: false,
     exactMatch: false,
+    searchTileNames: false,
     includeSelectColumns: true,
     includeInputOutput: true
   };
@@ -383,7 +382,7 @@ function analyzeColumnsInTiles(columnName, filterPrefs) {
       return; // Skip this tile
     }
     
-    console.log(`[Column Search] Checking tile: ${action.name} (${action.type})`);
+    // console.log(`[Column Search] Checking tile: ${action.name} (${action.type})`);
     
     const matches = {
       tileId: action.id,
@@ -391,8 +390,15 @@ function analyzeColumnsInTiles(columnName, filterPrefs) {
       tileType: action.type,
       tileDisplayType: getTileDisplayName(action.type),
       operations: []
-    };
-    
+    };    
+    // Check if tile name matches search term (if enabled)
+    if (filters.searchTileNames && action.name && matchesSearch(action.name)) {
+      matches.operations.push({
+        operation: 'TILE_NAME_MATCH',
+        detail: `Tile name: ${action.name}`,
+        icon: '🏷️'
+      });
+    }    
     // Check different tile types for column references
     
     // 1. SelectValues - selects/renames columns
