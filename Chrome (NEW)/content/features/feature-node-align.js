@@ -371,15 +371,40 @@ function emulationDragNode(node, fromX, fromY, toX, toY) {
               }
             });
             
-            // Check if the node actually moved
-            didMove = hasNodeMoved(node, originalTransform);
-            console.log('[Node Align] Drag complete, node moved:', didMove, 'transform:', node.style.transform);
+            // Don't resolve until the node has ACTUALLY MOVED
+            // This ensures React Flow finishes processing before next drag starts
+            const startWait = Date.now();
+            const maxWait = 200; // Timeout if React Flow doesn't update in 200ms
+            let initialDelay = true;
             
-            setTimeout(resolve, 100);
-          }, 40);
+            const checkMove = () => {
+              // Add small initial delay to let React Flow process the events
+              if (initialDelay) {
+                initialDelay = false;
+                setTimeout(checkMove, 5);
+                return;
+              }
+              
+              didMove = hasNodeMoved(node, originalTransform);
+              const elapsed = Date.now() - startWait;
+              
+              if (didMove) {
+                console.log('[Node Align] Node moved! Resolved after', elapsed, 'ms');
+                resolve();
+              } else if (elapsed >= maxWait) {
+                console.log('[Node Align] Timeout waiting for node to move (', elapsed, 'ms). Proceeding anyway.');
+                resolve();
+              } else {
+                // Keep checking - node hasn't moved yet (poll every 10ms)
+                setTimeout(checkMove, 10);
+              }
+            };
+            
+            checkMove();
+          }, 15);
         }
-      }, 20);
-    }, 10);
+      }, 10);
+    }, 5);
   });
 }
 
@@ -397,7 +422,7 @@ async function alignNodesVertically() {
   // Deselect all nodes first so dragging one doesn't drag all of them
   console.log('[Node Align] Deselecting all nodes first to prevent multi-node drag...');
   await clickCanvasBackground();
-  await new Promise(resolve => setTimeout(resolve, 50));
+  await new Promise(resolve => setTimeout(resolve, 20));
 
   let nodesInfo = nodes.map(getNodeInfo);
   
@@ -437,7 +462,7 @@ async function alignNodesHorizontally() {
   // Deselect all nodes first so dragging one doesn't drag all of them
   console.log('[Node Align] Deselecting all nodes first to prevent multi-node drag...');
   await clickCanvasBackground();
-  await new Promise(resolve => setTimeout(resolve, 50));
+  await new Promise(resolve => setTimeout(resolve, 20));
 
   let nodesInfo = nodes.map(getNodeInfo);
   
@@ -477,7 +502,7 @@ async function distributeNodesVertically() {
   // Deselect all nodes first so dragging one doesn't drag all of them
   console.log('[Node Align] Deselecting all nodes first to prevent multi-node drag...');
   await clickCanvasBackground();
-  await new Promise(resolve => setTimeout(resolve, 50));
+  await new Promise(resolve => setTimeout(resolve, 20));
 
   let nodesInfo = nodes.map(getNodeInfo);
   
@@ -521,7 +546,7 @@ async function distributeNodesHorizontally() {
   // Deselect all nodes first so dragging one doesn't drag all of them
   console.log('[Node Align] Deselecting all nodes first to prevent multi-node drag...');
   await clickCanvasBackground();
-  await new Promise(resolve => setTimeout(resolve, 50));
+  await new Promise(resolve => setTimeout(resolve, 20));
 
   let nodesInfo = nodes.map(getNodeInfo);
   
@@ -565,7 +590,7 @@ async function centerNodesVertically() {
   // Deselect all nodes first so dragging one doesn't drag all of them
   console.log('[Node Align] Deselecting all nodes first to prevent multi-node drag...');
   await clickCanvasBackground();
-  await new Promise(resolve => setTimeout(resolve, 50));
+  await new Promise(resolve => setTimeout(resolve, 20));
 
   let nodesInfo = nodes.map(getNodeInfo);
   
@@ -609,8 +634,6 @@ async function centerNodesVertically() {
     
     if (snappedTargetX !== currentInfo.x || snappedTargetY !== currentInfo.y) {
       await emulationDragNode(currentInfo.element, currentInfo.x, currentInfo.y, snappedTargetX, snappedTargetY);
-      // Wait longer for React Flow to settle after drag completes
-      await new Promise(resolve => setTimeout(resolve, 100));
       anyNodeMoved = true;
     }
   }
@@ -634,7 +657,7 @@ async function centerNodesHorizontally() {
   // CRITICAL: Deselect all nodes first so dragging one doesn't drag all of them
   console.log('[Node Align CENTER H] Deselecting all nodes first to prevent multi-node drag...');
   await clickCanvasBackground();
-  await new Promise(resolve => setTimeout(resolve, 50));
+  await new Promise(resolve => setTimeout(resolve, 20));
 
   let nodesInfo = nodes.map(getNodeInfo);
   
@@ -708,8 +731,6 @@ async function centerNodesHorizontally() {
     if (snappedTargetX !== currentInfo.x || snappedTargetY !== currentInfo.y) {
       console.log(`[Node Align CENTER H] Moving node ${i} from (${currentInfo.x}, ${currentInfo.y}) to (${snappedTargetX}, ${snappedTargetY})`);
       await emulationDragNode(currentInfo.element, currentInfo.x, currentInfo.y, snappedTargetX, snappedTargetY);
-      // Wait longer for React Flow to settle after drag completes
-      await new Promise(resolve => setTimeout(resolve, 300));
       anyNodeMoved = true;
     } else {
       console.log(`[Node Align CENTER H] Node ${i} already at target, skipping`);
