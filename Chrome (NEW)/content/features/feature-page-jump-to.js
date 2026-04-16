@@ -23,8 +23,17 @@ function processNotebookBody(notebookBody) {
 
 export default {
   init({ PageDetector } = {}) {
-    // Optional: Verify we're on the correct page type
-    if (PageDetector && !PageDetector.isPage()) {
+    // Support both old (PageDetector) and new (context subscription) systems
+    if (window.subscribeToContextUpdates) {
+      window.subscribeToContextUpdates((context) => {
+        const isPageContext = context?.domoObject?.typeId === 'PAGE';
+        if (!isPageContext) {
+          console.log('[Page Jump To] Non-PAGE context detected');
+        } else {
+          console.log('[Page Jump To] PAGE context detected, feature active');
+        }
+      });
+    } else if (PageDetector && !PageDetector.isPage()) {
       console.warn('[Page Jump To] Warning: Feature initialized on non-PAGE context');
     }
     

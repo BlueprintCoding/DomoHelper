@@ -126,12 +126,13 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Create new listener with fresh currentTabId
         handleContextBroadcast = (message, sender, sendResponse) => {
+            // Listen for TAB_CONTEXT_UPDATED from new background system
             if (message.type === 'TAB_CONTEXT_UPDATED') {
-                console.log(`[Side Panel] Broadcast received for tab ${message.tabId}, current tab: ${currentTabId}`);
+                console.log(`[Side Panel] TAB_CONTEXT_UPDATED received for tab ${message.tabId}, current tab: ${currentTabId}`);
                 
                 // Only update if broadcast is for our current tab
                 if (message.tabId === currentTabId) {
-                    console.log('[Side Panel] Broadcast matches current tab, updating context');
+                    console.log('[Side Panel] Context matches current tab, updating');
                     // Clear any pending wait timeout since we got the broadcast
                     if (contextWaitTimeout) {
                         clearTimeout(contextWaitTimeout);
@@ -144,6 +145,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 sendResponse({ received: true });
                 return true;
             }
+
+            // FALLBACK: Also support old message format for backward compatibility
+            if (message.type === 'TAB_CONTEXT_UPDATED_OLD' || !message.type) {
+                console.log(`[Side Panel] Fallback broadcast received for tab ${message.tabId}, current tab: ${currentTabId}`);
+                
+                if (message.tabId === currentTabId) {
+                    if (contextWaitTimeout) {
+                        clearTimeout(contextWaitTimeout);
+                        contextWaitTimeout = null;
+                    }
+                    handleContextUpdate(message.context);
+                }
+                sendResponse({ received: true });
+                return true;
+            }
+
             // Don't respond to other message types
             return false;
         };
@@ -182,61 +199,44 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Clear UI state for new tab
                     clearColumnSearchUI();
                     
-                    // Check if context has a valid pageType
-                    if (response.context && response.context.pageType) {
+                    // Check if context has valid object
+                    const context = response.context;
+                    if (context && (context.domoObject || context.pageType)) {
                         // Valid context - update immediately
-                        console.log(`[Side Panel] Tab has cached context: ${response.context.pageType}`);
-                        handleContextUpdate(response.context);
-                    } else if (response.context && response.context.error) {
-                        // Connection/detection error - background worker is detecting, wait for broadcast
-                        const isConnectionError = response.context.error.includes('Receiving end does not exist') ||
-                                                 response.context.error.includes('not connected') ||
-                                                 response.context.error.includes('Could not establish');
-                        
-                        if (isConnectionError) {
-                            console.log('[Side Panel] Tab context not available yet (connection error), waiting for background detection...');
-                            // Show loading state while waiting for background detection
-                            const placeholder = document.getElementById('contextPlaceholder');
-                            if (placeholder) {
-                                placeholder.innerHTML = '<p style="color: #999; font-size: 0.9em; text-align: center; padding: 20px 10px;">Loading page features...</p>';
-                                placeholder.style.display = 'block';
-                            }
-                            
-                            // Set a timeout - if no broadcast comes within 5 seconds, we'll try again
-                            // This handles cases where background detection is still retrying
-                            if (contextWaitTimeout) clearTimeout(contextWaitTimeout);
-                            contextWaitTimeout = setTimeout(() => {
-                                console.log('[Side Panel] Context wait timeout, retrying GET_TAB_CONTEXT...');
-                                contextWaitTimeout = null;
-                                
-                                // Try to get context again (may have been updated by now)
-                                chrome.runtime.sendMessage({
-                                    type: 'GET_TAB_CONTEXT',
-                                    tabId: currentTabId
-                                }).then(response => {
-                                    if (response?.context?.pageType) {
-                                        console.log('[Side Panel] Got context on retry:', response.context.pageType);
-                                        handleContextUpdate(response.context);
-                                    } else {
-                                        console.log('[Side Panel] Still no valid context after retry');
-                                        const placeholder2 = document.getElementById('contextPlaceholder');
-                                        if (placeholder2) {
-                                            placeholder2.innerHTML = '<p style="color: #999; font-size: 0.9em; text-align: center; padding: 20px 10px;">Unable to load page features. Try refreshing the page.</p>';
-                                        }
-                                    }
-                                }).catch(err => {
-                                    console.error('[Side Panel] Error retrying context:', err.message);
-                                });
-                            }, 5000);
-                            
-                            // Don't call initializeContextFeatures - let the broadcast update us
-                        } else {
-                            // Some other error, show it
-                            handleContextUpdate(response.context);
-                        }
+                        const objectType = context.domoObject?.typeId || context.pageType;
+                        console.log(`[Side Panel] Tab has context: ${objectType}`);
+                        handleContextUpdate(context);
                     } else {
-                        // No error but also no valid pageType - unclear state
-                        handleContextUpdate(null);
+                        // No valid context yet - wait for broadcast
+                        const placeholder = document.getElementById('contextPlaceholder');
+                        if (placeholder) {
+                            placeholder.style.display = 'none';
+                        }
+                        
+                        // Set timeout to retry if no broadcast comes
+                        if (contextWaitTimeout) clearTimeout(contextWaitTimeout);
+                        contextWaitTimeout = setTimeout(() => {
+                            console.log('[Side Panel] Context wait timeout, retrying...');
+                            contextWaitTimeout = null;
+                            
+                            chrome.runtime.sendMessage({
+                                type: 'GET_TAB_CONTEXT',
+                                tabId: currentTabId
+                            }).then(response => {
+                                if (response?.context?.domoObject || response?.context?.pageType) {
+                                    console.log('[Side Panel] Got context on retry');
+                                    handleContextUpdate(response.context);
+                                } else {
+                                    console.log('[Side Panel] Still no valid context after retry');
+                                    const placeholder2 = document.getElementById('contextPlaceholder');
+                                    if (placeholder2) {
+                                        placeholder2.innerHTML = '<p style="color: #999; font-size: 0.9em; text-align: center; padding: 20px 10px;">Unable to load page features. Try refreshing the page.</p>';
+                                    }
+                                }
+                            }).catch(err => {
+                                console.error('[Side Panel] Error retrying context:', err.message);
+                            });
+                        }, 5000);
                     }
                 } else {
                     console.log('[Side Panel] Failed to get context for activated tab');
@@ -287,13 +287,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 tabId: currentTabId
             });
             
-            console.log('[Side Panel] Initial context response:', response);
+            console.log('[Side Panel] Initial context response:', response?.context ? `${response.context.domoObject?.typeId || response.context.pageType}` : 'none');
             
             if (response.success && response.context) {
                 handleContextUpdate(response.context);
             } else {
                 handleContextUpdate(null);
             }
+            
+            // Fallback: Check for analyzer page by URL (in case background detection hasn't completed yet)
+            checkAnalyzerPageContext();
             
         } catch (error) {
             console.error('[Side Panel] Error during initialization:', error);
@@ -367,11 +370,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.log('[Side Panel] Active tab URL changed:', changeInfo.url);
                     clearColumnSearchUI();
                     // Background worker will detect the new page type and broadcast result
-                    // Show loading message while detection happens
+                    // Wait for detection from background worker
                     const placeholder = document.getElementById('contextPlaceholder');
                     if (placeholder) {
-                        placeholder.innerHTML = '<p style="color: #999; font-size: 0.9em; text-align: center; padding: 20px 10px;">Loading page features...</p>';
-                        placeholder.style.display = 'block';
+                        placeholder.style.display = 'none';
                     }
                 }
                 // Also check when page finish loading (handles refreshes)
@@ -379,10 +381,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.log('[Side Panel] Active tab page loading complete');
                     // Background worker will detect/update page type and broadcast
                     const placeholder = document.getElementById('contextPlaceholder');
-                    if (placeholder && placeholder.style.display !== 'block') {
-                        // Only show loading if not already showing
-                        placeholder.innerHTML = '<p style="color: #999; font-size: 0.9em; text-align: center; padding: 20px 10px;">Loading page features...</p>';
-                        placeholder.style.display = 'block';
+                    if (placeholder) {
+                        placeholder.style.display = 'none';
                     }
                 }
             }
@@ -527,69 +527,151 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
+    // Load and save tab title settings
+    const toggleUpdateTabTitle = document.getElementById('toggleUpdateTabTitle');
+    const tabTitleStripPatterns = document.getElementById('tabTitleStripPatterns');
+    
+    if (toggleUpdateTabTitle && tabTitleStripPatterns) {
+        // Load settings from storage
+        chrome.storage.local.get(['updateTabTitle', 'tabTitleStripPatterns'], function(settings) {
+            toggleUpdateTabTitle.checked = settings.updateTabTitle !== false;
+            tabTitleStripPatterns.value = settings.tabTitleStripPatterns || '';
+        });
+
+        // Save when checkbox changes
+        toggleUpdateTabTitle.addEventListener('change', function() {
+            chrome.storage.local.set({ updateTabTitle: toggleUpdateTabTitle.checked });
+        });
+
+        // Save when patterns textarea changes
+        tabTitleStripPatterns.addEventListener('change', function() {
+            chrome.storage.local.set({ tabTitleStripPatterns: tabTitleStripPatterns.value }, function() {
+                // Reapply tab title with new patterns to active tab
+                chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+                    if (tabs.length > 0) {
+                        chrome.runtime.sendMessage({
+                            type: 'REAPPLY_TAB_TITLE',
+                            tabId: tabs[0].id
+                        }).catch(() => {
+                            // Ignore errors
+                        });
+                    }
+                });
+            });
+        });
+    }
+
     // Clear Analyzer functionality
-    clearAnalyzerBtn.addEventListener('click', function() {
-        chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+    clearAnalyzerBtn.addEventListener('click', async function() {
+        chrome.tabs.query({ active: true, currentWindow: true }, async function(tabs) {
             if (tabs.length > 0) {
                 const currentUrl = tabs[0].url;
                 
                 // Check if on analyzer page
-                if (currentUrl && currentUrl.includes('bcpequity.domo.com/analyzer')) {
+                if (currentUrl && currentUrl.includes('/analyzer')) {
                     clearAnalyzerBtn.disabled = true;
                     clearAnalyzerBtn.textContent = 'Clearing...';
                     
-                    chrome.tabs.sendMessage(tabs[0].id, { type: "clearAnalyzerColumns", autoSelectTable: toggleAutoSelectTable.checked }, function(response) {
+                    try {
+                        // Import the analyzer tools feature
+                        const analyzerToolsFeature = await import('../content/features/feature-analyzer-tools.js');
+                        const clearScript = analyzerToolsFeature.default.getClearColumnsScript();
+                        
+                        // Inject and execute the script
+                        chrome.scripting.executeScript({
+                            target: { tabId: tabs[0].id },
+                            func: clearScript,
+                            args: [toggleAutoSelectTable.checked]
+                        }, function() {
+                            if (chrome.runtime.lastError) {
+                                console.error('[Side Panel] Execute error:', chrome.runtime.lastError);
+                                clearAnalyzerBtn.disabled = false;
+                                clearAnalyzerBtn.textContent = 'Clear All Analyzer Columns';
+                                showMessage('Error executing clear command: ' + chrome.runtime.lastError.message, 'error');
+                            } else {
+                                console.log('[Side Panel] Clear script executed successfully');
+                                showMessage('Clearing analyzer columns...', 'success');
+                                setTimeout(() => {
+                                    clearAnalyzerBtn.disabled = false;
+                                    clearAnalyzerBtn.textContent = 'Clear All Analyzer Columns';
+                                }, 3000);
+                            }
+                        });
+                    } catch (err) {
+                        console.error('[Side Panel] Error importing analyzer tools feature:', err);
                         clearAnalyzerBtn.disabled = false;
                         clearAnalyzerBtn.textContent = 'Clear All Analyzer Columns';
-                        
-                        if (chrome.runtime.lastError) {
-                            console.error('Clear Analyzer Error:', chrome.runtime.lastError.message);
-                            showMessage('Error: ' + chrome.runtime.lastError.message + ' | Make sure: 1) You are on the analyzer page, 2) The page is fully loaded, 3) There are columns to clear', 'error');
-                        } else if (response && response.success) {
-                            if (response.count > 0) {
-                                showMessage(`Successfully cleared ${response.count} column${response.count !== 1 ? 's' : ''}!`, 'success');
-                            } else {
-                                showMessage('No columns found to clear. The analyzer may already be empty.', 'warning');
-                            }
-                        } else {
-                            showMessage('No response from page. Make sure you are on the analyzer page.', 'error');
-                        }
-                    });
+                        showMessage('Error loading analyzer tools: ' + err.message, 'error');
+                    }
                 } else {
-                    showMessage('This feature only works on https://bcpequity.domo.com/analyzer', 'warning');
+                    showMessage('This feature only works on analyzer pages', 'warning');
                     console.log('Current URL:', currentUrl);
                 }
             }
         });
     });
 
-    // Beast Mode Template
-    const beastModeTemplate = document.getElementById('beastModeTemplate');
-    const copyTemplateBtn = document.getElementById('copyTemplate');
-    
-    const templateText = `CASE
-    WHEN LENGTH(\`Your_Column\`) > 20 THEN 
-        CONCAT(
-            '<span font-color="',\`Your_Column\`,'">',
-            SUBSTRING(\`Your_Column\`, 1, 20),
-            '...</span>'
-        )
-    ELSE CONCAT(
-            '<span font-color="NOTEXT">',
-            \`Your_Column\`,
-            '</span>')
-END`;
+    // Analyzer Tools Section Toggle Handler
+    const analyzerToolsSection = document.getElementById('analyzerToolsSection');
+    const analyzerToolsHeader = document.getElementById('analyzerToolsHeader');
+    const analyzerToolsToggleBtn = document.getElementById('analyzerToolsToggleBtn');
+    const analyzerToolsContentWrapper = document.getElementById('analyzerToolsContentWrapper');
 
-    beastModeTemplate.value = templateText;
+    // Toggle analyzer tools on header click
+    analyzerToolsHeader.addEventListener('click', function() {
+        const isExpanded = analyzerToolsContentWrapper.style.display !== 'none';
+        analyzerToolsContentWrapper.style.display = isExpanded ? 'none' : 'block';
+        analyzerToolsToggleBtn.textContent = isExpanded ? '+' : '−';
+        
+        // Save preference
+        chrome.storage.local.set({ analyzerToolsExpanded: !isExpanded });
+    });
 
-    copyTemplateBtn.addEventListener('click', function() {
-        beastModeTemplate.select();
-        document.execCommand('copy');
-        const originalText = copyTemplateBtn.textContent;
-        copyTemplateBtn.textContent = 'Copied!';
-        setTimeout(() => {
-            copyTemplateBtn.textContent = originalText;
-        }, 2000);
+    // Check current tab to show/hide analyzer tools section
+    function checkAnalyzerPageContext() {
+        chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+            if (tabs.length > 0) {
+                const currentUrl = tabs[0].url || '';
+                // More precise check: must contain /analyzer AND be a domo domain
+                const isAnalyzerPage = currentUrl.includes('.domo.com/') && currentUrl.includes('/analyzer');
+                
+                console.log('[Side Panel] Checking analyzer context. URL:', currentUrl, 'Is analyzer:', isAnalyzerPage);
+                
+                if (isAnalyzerPage) {
+                    // Hide and clear placeholder for analyzer pages
+                    const placeholder = document.getElementById('contextPlaceholder');
+                    if (placeholder) {
+                        placeholder.style.display = 'none';
+                        placeholder.innerHTML = ''; // Clear any pending messages
+                    }
+                    
+                    analyzerToolsSection.style.display = 'block';
+                    
+                    // Show analyzer tools content by default
+                    analyzerToolsContentWrapper.style.display = 'block';
+                    analyzerToolsToggleBtn.textContent = '−';
+                } else {
+                    analyzerToolsSection.style.display = 'none';
+                }
+            }
+        });
+    }
+
+    // Check on initial load
+    checkAnalyzerPageContext();
+
+    // Listen for tab updates to show/hide based on current page
+    chrome.tabs.onActivated.addListener(function(activeInfo) {
+        // Small delay to ensure tab info is ready
+        setTimeout(checkAnalyzerPageContext, 100);
+    });
+
+    // Also check when URL changes
+    chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
+        if (changeInfo.url) {
+            // URL changed - recheck visibility
+            checkAnalyzerPageContext();
+        }
     });
 
     function sendMessageToContentScript(message) {
@@ -685,7 +767,32 @@ END`;
         const contextDisplay = document.getElementById('contextInfoDisplay');
         if (!contextDisplay) return;
 
-        if (!context || !context.pageType || !context.url) {
+        if (!context || !context.url) {
+            contextDisplay.classList.add('context-hidden');
+            return;
+        }
+
+        // Extract pageType from either format
+        let pageType = context.pageType;
+        if (!pageType && context.domoObject?.typeId) {
+            const typeIdMap = {
+                'DATAFLOW': 'MAGIC_ETL',
+                'DATAFLOW_TYPE': 'MAGIC_ETL',
+                'UNPUBLISHED_DATAFLOW': 'MAGIC_ETL',
+                'MAGIC_ETL': 'MAGIC_ETL',
+                'PAGE': 'PAGE',
+                'CARD': 'CARD',
+                'DATA_APP_VIEW': 'DATA_APP',
+                'DATA_APP': 'DATA_APP',
+                'WORKSHEET_VIEW': 'WORKSHEET',
+                'USER': 'USER',
+                'GROUP': 'GROUP',
+                'WORKFLOW_MODEL': 'WORKFLOW'
+            };
+            pageType = typeIdMap[context.domoObject.typeId] || context.domoObject.typeId;
+        }
+
+        if (!pageType) {
             contextDisplay.classList.add('context-hidden');
             return;
         }
@@ -698,7 +805,10 @@ END`;
         const pageTypeDisplay = {
             'MAGIC_ETL': '🔗 Magic ETL',
             'SQL_AUTHOR': '📊 SQL Author',
-            'PAGE': '📄 Dashboard'
+            'PAGE': '📄 Dashboard',
+            'ANALYZER': '📈 Analyzer',
+            'DATA_SOURCE': '💾 Data Source',
+            'CARD': '📊 Card'
         };
 
         // Update chips
@@ -711,40 +821,40 @@ END`;
         }
         
         if (pageTypeChip) {
-            pageTypeChip.textContent = pageTypeDisplay[context.pageType] || context.pageType;
-            pageTypeChip.title = `Page Type: ${context.pageType}`;
+            pageTypeChip.textContent = pageTypeDisplay[pageType] || pageType;
+            pageTypeChip.title = `Page Type: ${pageType}`;
         }
 
-        // Update object info if available (from PageDetector.describe() or DomoObject metadata)
+        // Update object info if available (from DomoObject metadata - now enriched by background)
         const contextName = document.getElementById('contextObjectName');
         const contextId = document.getElementById('contextObjectId');
         
         let displayName = null;
         let displayId = null;
         
-        // Try to get object name from DomoObject metadata (domo-toolkit pattern)
+        // Get name from DomoObject metadata (enriched by background via API)
         if (context.domoObject?.metadata?.name) {
           displayName = context.domoObject.metadata.name;
           displayId = context.domoObject.id;
-          console.log('[Side Panel] Using DomoObject name:', displayName);
+          console.log('[Side Panel] ✓ Using enriched DomoObject name:', displayName);
+        } else {
+          console.log('[Side Panel] No enriched name available, metadata:', JSON.stringify(context.domoObject?.metadata));
         }
-        // Try PageDetector's extracted object name
-        else if (context.description?.objectName) {
-          displayName = context.description.objectName;
-          console.log('[Side Panel] Using PageDetector objectName:', displayName);
-        }
+        
         // Fallback to type display
-        else if (context.description) {
+        if (!displayName && context.description) {
           const typeDisplay = context.description.isPage ? 'Dashboard Page' 
                             : context.description.isMagicETL ? 'Magic ETL Flow'
                             : context.description.isSQLAuthor ? 'SQL Query'
                             : 'Domo Page';
           displayName = typeDisplay;
+          console.log('[Side Panel] Using type display fallback:', displayName);
         }
         
-        // Final fallback - just show page type
+        // Final fallback
         if (!displayName) {
-          displayName = context.pageType || 'Domo Page';
+          displayName = pageType || 'Domo Page';
+          console.log('[Side Panel] Using final fallback:', displayName);
         }
         
         if (contextName) {
@@ -780,22 +890,35 @@ END`;
             return;
         }
 
-        // Extract page type from different context formats
-        let pageType = context.pageType; // Old format: simple { pageType: 'MAGIC_ETL' }
+        // Extract card ID for cache management - works for both CARD and ANALYZER contexts
+        let cardId = null;
         
+        // Support both old and new context formats
+        let pageType = null;
+        let objectInfo = null;
+
+        // Old format: { pageType: 'MAGIC_ETL' }
+        if (context.pageType) {
+            pageType = context.pageType;
+        }
         // New format: DomoContext with domoObject.typeId
-        if (!pageType && context.domoObject?.typeId) {
-            // Map DomoContext typeId to page type
+        else if (context.domoObject?.typeId) {
+            objectInfo = context.domoObject;
             const typeIdMap = {
-                'MAGIC_ETL': 'MAGIC_ETL',
+                'DATAFLOW': 'MAGIC_ETL',
                 'DATAFLOW_TYPE': 'MAGIC_ETL',
-                'SQL_AUTHOR': 'SQL_AUTHOR',
+                'UNPUBLISHED_DATAFLOW': 'MAGIC_ETL',
+                'MAGIC_ETL': 'MAGIC_ETL',
                 'PAGE': 'PAGE',
                 'CARD': 'CARD',
                 'DATA_APP_VIEW': 'DATA_APP',
-                'WORKSHEET_VIEW': 'WORKSHEET'
+                'DATA_APP': 'DATA_APP',
+                'WORKSHEET_VIEW': 'WORKSHEET',
+                'USER': 'USER',
+                'GROUP': 'GROUP',
+                'WORKFLOW_MODEL': 'WORKFLOW'
             };
-            pageType = typeIdMap[context.domoObject.typeId] || context.domoObject.typeId;
+            pageType = typeIdMap[objectInfo.typeId] || objectInfo.typeId;
         }
 
         if (!pageType) {
@@ -804,36 +927,89 @@ END`;
             return;
         }
 
-        console.log(`[Side Panel] ✓ Detected page type: ${pageType}`);
+        console.log(`[Side Panel] ✓ Detected: ${pageType}${objectInfo ? ` (${objectInfo.typeName} "${objectInfo.metadata?.name || objectInfo.id}")` : ''}`);
         
-        // Update context display at top of panel with both old and new context formats
+        // Update context display at top of panel
         updateContextDisplay(context);
         
         // Clear old UI
         clearColumnSearchUI();
         
-        // Hide recipes section and show placeholder by default
+        // Clear all sections and reset placeholder to default state
         const recipeSection = document.getElementById('magicRecipesSection');
         const placeholder = document.getElementById('contextPlaceholder');
-        if (recipeSection) recipeSection.style.display = 'none';
+        const analyzerSection = document.getElementById('analyzerToolsSection');
         
-        // Initialize features based on page type
-        if (pageType === 'MAGIC_ETL') {
-            // Hide placeholder and show recipes for Magic ETL
+        if (recipeSection) recipeSection.style.display = 'none';
+        if (analyzerSection) analyzerSection.style.display = 'none';
+        
+        // Reset placeholder to default state
+        if (placeholder) {
+            placeholder.style.display = 'none'; // Start hidden by default - CSS already hides it
+            // Clear any previous error messages
+            placeholder.innerHTML = '';
+        }
+        
+        // Check if this is an analyzer page using the context URL - CHECK FIRST!
+        const contextUrl = context?.url || '';
+        console.log('[Side Panel] Checking analyzer context. URL:', contextUrl);
+        const isAnalyzer = contextUrl.includes('/analyzer');
+        console.log('[Side Panel] Is analyzer:', isAnalyzer);
+        
+        // ANALYZER PAGES FIRST - regardless of detected pageType
+        if (isAnalyzer) {
+            // Hide placeholder for analyzer pages
+            if (placeholder) placeholder.style.display = 'none';
+            
+            // Show analyzer tools section
+            if (analyzerSection) {
+                analyzerSection.style.display = 'block';
+                console.log('[Side Panel] Analyzer section displayed');
+                
+                // Directly show analyzer tools content
+                const analyzerToolsContentWrapper = document.getElementById('analyzerToolsContentWrapper');
+                const analyzerToolsToggleBtn = document.getElementById('analyzerToolsToggleBtn');
+                if (analyzerToolsContentWrapper) {
+                    analyzerToolsContentWrapper.style.display = 'block';
+                    if (analyzerToolsToggleBtn) {
+                        analyzerToolsToggleBtn.textContent = '−';
+                    }
+                    console.log('[Side Panel] Analyzer tools content wrapper shown');
+                }
+            }
+            
+            console.log('[Side Panel] Analyzer page detected');
+        }
+        // NOT an analyzer page - check page type for other features
+        else if (pageType === 'MAGIC_ETL') {
+            // Hide placeholder and show recipes for Magic ETL/Dataflow
             if (placeholder) placeholder.style.display = 'none';
             initializeMagicRecipes();
             initializeColumnSearch();
+        } else if (pageType === 'SQL_AUTHOR' || pageType === 'SQL_DATAFLOW' || pageType === 'MYSQL_DATAFLOW' || pageType === 'DATAFLOW_TYPE') {
+            // SQL/MySQL/other dataflow pages - same features as Magic ETL
+            if (placeholder) placeholder.style.display = 'none';
+            initializeMagicRecipes();
+            initializeColumnSearch();
+            console.log('[Side Panel] Dataflow page detected:', pageType);
         } else if (pageType === 'PAGE') {
-            // Show placeholder for dashboard pages
+            // Regular dashboard page - show placeholder
             if (placeholder) placeholder.style.display = 'block';
-            console.log('[Side Panel] PAGE detected (no features for dashboard pages yet)');
-        } else if (pageType === 'SQL_AUTHOR') {
-            // Show placeholder for SQL pages
+            console.log('[Side Panel] Dashboard page detected');
+        } else if (pageType === 'CARD') {
+            // Show placeholder for card pages
             if (placeholder) placeholder.style.display = 'block';
-            console.log('[Side Panel] SQL_AUTHOR detected (version notes handled by content script)');
+            console.log('[Side Panel] Card detected');
+        } else if (pageType === 'DATA_APP' || pageType === 'WORKSHEET') {
+            // Show placeholder for app studio
+            if (placeholder) placeholder.style.display = 'block';
+            console.log('[Side Panel] App Studio page detected');
         } else {
             // Show placeholder for unknown types
-            if (placeholder) placeholder.style.display = 'block';
+            if (placeholder) {
+                placeholder.style.display = 'block';
+                placeholder.innerHTML = `<p style="color: #999; font-size: 0.9em; text-align: center; padding: 20px 10px;">Domo Helper features not available on ${pageType} pages</p>`;
+            }
             console.log('[Side Panel] Unknown page type:', pageType);
         }
     }
@@ -922,19 +1098,6 @@ END`;
         }
     }
     
-    /**
-     * Listen for context changes from content script
-     * This triggers when user navigates within Magic ETL
-     */
-    function listenForContextChanges() {
-        chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-            if (request.type === 'CONTEXT_UPDATE') {
-                console.log('[Side Panel] Received context update from content script:', request.context);
-                handleContextUpdate(request.context);
-            }
-        });
-    }
-
     /**
      * Initialize Magic Recipes Context
      */

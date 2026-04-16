@@ -7,8 +7,90 @@ window.domoHelperContentScriptReady = false;
 // Context validity flag - used to prevent stale listeners from responding
 window.__domoHelperContentMainValid = false;
 
-// === PAGE DETECTION MODULE ===
-import PageDetector from './modules/page-detector.js';
+// === NEW CONTEXT SYSTEM ===
+// Store current context for features to access
+window.__domoHelperContext = null;
+window.__domoHelperContextUpdateCallbacks = [];
+
+/**
+ * Features can subscribe to context updates
+ */
+window.subscribeToContextUpdates = (callback) => {
+  window.__domoHelperContextUpdateCallbacks.push(callback);
+};
+
+/**
+ * Get current context (may be null if not yet detected)
+ */
+window.getDomoHelperContext = () => window.__domoHelperContext;
+
+/**
+ * Trigger re-detection from a feature
+ */
+window.triggerDomoHelperRedetection = () => {
+  chrome.runtime.sendMessage({ type: 'DETECT_CONTEXT' }).catch(err => {
+    console.warn('[Content Main] Failed to trigger re-detection:', err.message);
+  });
+};
+
+// === PAGE TYPE HELPER (uses context from background.js) ===
+// Instead of separate detection, use the comprehensive detection from background.js
+const ContextHelper = {
+  /**
+   * Check if current context indicates we're on a dashboard/card page
+   */
+  isPageType() {
+    const context = window.__domoHelperContext;
+    return context?.domoObject?.typeId === 'PAGE';
+  },
+  
+  /**
+   * Check if current context indicates we're on Magic ETL
+   */
+  isMagicETLType() {
+    const context = window.__domoHelperContext;
+    return context?.domoObject?.typeId === 'MAGIC_ETL' || 
+           context?.domoObject?.typeId === 'DATAFLOW_TYPE';
+  },
+  
+  /**
+   * Check if current context indicates we're on SQL Author
+   */
+  isSQLAuthorType() {
+    const context = window.__domoHelperContext;
+    return context?.domoObject?.typeId === 'SQL_AUTHOR';
+  },
+  
+  /**
+   * Check if current context is a relevant page type
+   */
+  isRelevantType() {
+    const context = window.__domoHelperContext;
+    const typeId = context?.domoObject?.typeId;
+    return typeId && ['PAGE', 'MAGIC_ETL', 'DATAFLOW_TYPE', 'SQL_AUTHOR', 'ANALYZER'].includes(typeId);
+  },
+  
+  /**
+   * Get current page type from context
+   */
+  getPageType() {
+    const context = window.__domoHelperContext;
+    const typeId = context?.domoObject?.typeId;
+    
+    if (!typeId) return 'UNKNOWN';
+    
+    // Map typeId to display page type
+    const typeMap = {
+      'PAGE': 'PAGE',
+      'MAGIC_ETL': 'MAGIC_ETL',
+      'DATAFLOW_TYPE': 'MAGIC_ETL',
+      'SQL_AUTHOR': 'SQL_AUTHOR',
+      'ANALYZER': 'ANALYZER'
+    };
+    
+    return typeMap[typeId] || typeId;
+  }
+};
 
 // === CLIPBOARD INTERCEPTION SYSTEM ===
 // Intercept clipboard writes to capture what Domo is copying
@@ -49,6 +131,30 @@ function getCapturedClipboardData() {
 window.getCapturedClipboardData = getCapturedClipboardData;
 
 setupClipboardInterceptor();
+
+// === FETCH INTERCEPTION FOR ANALYZER SAVE DETECTION ===
+function setupAnalyzerSaveDetection() {
+  console.log('[Fetch Interceptor] Setting up analyzer save detection');
+  
+  // Inject fetch interceptor script via external file (complies with CSP)
+  const script = document.createElement('script');
+  const interceptorUrl = chrome.runtime.getURL('fetch-interceptor.js');
+  console.log('[Fetch Interceptor] Loading from:', interceptorUrl);
+  
+  script.src = interceptorUrl;
+  script.onload = function() {
+    console.log('[Fetch Interceptor] Script loaded successfully');
+    this.remove();
+  };
+  script.onerror = function() {
+    console.error('[Fetch Interceptor] Failed to load script from:', interceptorUrl);
+  };
+  
+  (document.head || document.documentElement).appendChild(script);
+  console.log('[Fetch Interceptor] Script tag appended to page');
+}
+
+setupAnalyzerSaveDetection();
 
 // Inject page script for clipboard helper (loads external file to comply with CSP)
 (function injectPageScript() {
@@ -176,7 +282,7 @@ const DH = {
       };
   
       // PAGE features
-      if (PageDetector.isPage()) {
+      if (ContextHelper.isPageType()) {
         try {
           // Inject page CSS
           const css = document.createElement('link');
@@ -187,18 +293,18 @@ const DH = {
     
           // Full text modal feature
           featureModules.pageFullText = (await import(chrome.runtime.getURL('content/features/feature-page-fulltext.js'))).default;
-          featureModules.pageFullText.init({ DH, settings: currentSettings, PageDetector });
+          featureModules.pageFullText.init({ DH, settings: currentSettings });
     
           // "Jump to:" body navigation
           featureModules.pageJumpTo = (await import(chrome.runtime.getURL('content/features/feature-page-jump-to.js'))).default;
-          featureModules.pageJumpTo.init({ DH, PageDetector });
+          featureModules.pageJumpTo.init({ DH });
         } catch (error) {
           console.error('[Content Main] Error loading page features:', error.message);
         }
       }
   
       // GRAPH features (Magic ETL)
-      if (PageDetector.isMagicETL()) {
+      if (ContextHelper.isMagicETLType()) {
         try {
           // Inject graph CSS
           const css = document.createElement('link');
@@ -209,24 +315,24 @@ const DH = {
     
           // Magic ETL recipes (UI + storage + insertion)
           featureModules.magicRecipes = (await import(chrome.runtime.getURL('content/features/feature-magic-recipes.js'))).default;
-          featureModules.magicRecipes.init({ DH, PageDetector });
+          featureModules.magicRecipes.init({ DH });
     
           // Domo Helper menu in sidebar
           featureModules.graphMenu = (await import(chrome.runtime.getURL('content/features/feature-graph-menu.js'))).default;
-          featureModules.graphMenu.init({ DH, PageDetector });
+          featureModules.graphMenu.init({ DH });
 
           // Select Columns reorder functionality
           featureModules.selectColumnsReorder = (await import(chrome.runtime.getURL('content/features/feature-select-columns-reorder.js'))).default;
-          featureModules.selectColumnsReorder.init({ DH, PageDetector });
+          featureModules.selectColumnsReorder.init({ DH });
 
           // Select Columns rename functionality
           featureModules.selectColumnsRename = (await import(chrome.runtime.getURL('content/features/feature-select-columns-rename.js'))).default;
-          featureModules.selectColumnsRename.init({ DH, PageDetector });
+          featureModules.selectColumnsRename.init({ DH });
 
           // Column Search functionality
           featureModules.columnSearch = (await import(chrome.runtime.getURL('content/features/feature-column-search.js'))).default;
           console.log('[Content Main] Column Search feature imported successfully');
-          featureModules.columnSearch.init({ DH, PageDetector });
+          featureModules.columnSearch.init({ DH });
           console.log('[Content Main] Column Search feature initialized');
 
           // Node Alignment functionality
@@ -239,14 +345,13 @@ const DH = {
       }
   
       // Version Notes enforcement (applies to SQL Author + Magic ETL Graph)
-      if (PageDetector.isSQLAuthor() || PageDetector.isMagicETL()) {
+      if (ContextHelper.isSQLAuthorType() || ContextHelper.isMagicETLType()) {
         try {
           featureModules.versionNotes = (await import(chrome.runtime.getURL('content/features/feature-version-notes.js'))).default;
           featureModules.versionNotes.init({ 
-            DH, 
-            PageDetector,
-            isAuthor: PageDetector.isSQLAuthor(),
-            isGraph: PageDetector.isMagicETL(),
+            DH,
+            isAuthor: ContextHelper.isSQLAuthorType(),
+            isGraph: ContextHelper.isMagicETLType(),
             settings: currentSettings 
           });
         } catch (error) {
@@ -260,6 +365,9 @@ const DH = {
   }
   
   // Set up message listener IMMEDIATELY (outside loadFeaturesForPage so it's available right away)
+  // Mark as valid BEFORE registering listener to avoid race condition
+  window.__domoHelperContentMainValid = true;
+  
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // Guard against stale listeners from old execution contexts
     if (!window.__domoHelperContentMainValid) {
@@ -277,9 +385,9 @@ const DH = {
     
     // Get page type - used by side panel to determine context
     if (message.action === 'GET_PAGE_TYPE') {
-      const pageType = PageDetector.getPageType();
+      const pageType = ContextHelper.getPageType();
       console.log('[Content Main] GET_PAGE_TYPE requested, returning:', pageType);
-      sendResponse({ pageType, description: PageDetector.describe() });
+      sendResponse({ pageType, context: window.__domoHelperContext });
       return true;
     }
     
@@ -455,14 +563,184 @@ const DH = {
       }
       return true;
     }
+
+    // Handle clear analyzer columns requests
+    if (message.type === 'clearAnalyzerColumns') {
+      console.log('[Content Main] clearAnalyzerColumns received');
+      
+      try {
+        // Send immediate response to keep port open
+        sendResponse({ success: true, started: true });
+      } catch (e) {
+        console.warn('[Content Main] Could not send response:', e.message);
+      }
+      
+      // Do the actual work in the background without waiting
+      (async () => {
+        try {
+          let count = 0;
+          const autoSelectTable = message.autoSelectTable || false;
+          
+          const removeNextColumn = () => {
+            // Re-query for X buttons each time (they change after each removal)
+            const xIcons = document.querySelectorAll('i.icon-x-circle-outline');
+            const xButtons = Array.from(xIcons).map(icon => icon.closest('button')).filter(btn => btn !== null);
+            
+            console.log(`[Content Main] Remaining columns: ${xButtons.length}`);
+            
+            if (xButtons.length === 0) {
+              // All done removing columns
+              if (autoSelectTable) {
+                console.log(`[Content Main] Auto-selecting table chart type`);
+                selectTableChartType();
+              }
+              
+              console.log(`[Content Main] Completed: ${count} columns cleared`);
+              return; // No response needed since we already responded above
+            }
+            
+            // Always click the first button (since others shift after removal)
+            const xButton = xButtons[0];
+            console.log(`[Content Main] Clicking X button to open popover (${count + 1})`);
+            
+            // Click the X button to open the popover
+            xButton.click();
+            
+            // Wait for popover to appear, then click remove button
+            setTimeout(() => {
+              const removeBtn = document.querySelector('button.remove-button.db-button');
+              if (removeBtn) {
+                console.log(`[Content Main] Clicking remove column button`);
+                removeBtn.click();
+                count++;
+              } else {
+                console.log(`[Content Main] Could not find remove button`);
+              }
+              
+              // Move to next column with delay
+              setTimeout(removeNextColumn, 300);
+            }, 150);
+          };
+          
+          console.log(`[Content Main] Starting column removal process`);
+          removeNextColumn();
+        } catch (err) {
+          console.error('[Content Main] Error in clearAnalyzerColumns:', err);
+        }
+      })();
+      
+      return true; // Keep channel open
+    }
+
+    // Helper function to select table chart type
+    function selectTableChartType() {
+      // Look for the table chart type element with class containing 'basic-table-small'
+      const tableChartElement = document.querySelector('[data-ui-test-chart-type="badge_basic_table"]');
+      
+      if (tableChartElement) {
+        console.log(`[Content Main] Found table chart type element, clicking it`);
+        tableChartElement.click();
+      } else {
+        console.log(`[Content Main] Could not find table chart type element`);
+      }
+    }
+
+    // Apply favicon to the page
+    if (message.type === 'APPLY_FAVICON' && message.faviconDataUrl) {
+      console.log('[Content Main] APPLY_FAVICON received');
+      try {
+        // Wait for page to finish loading before applying favicon (like domo-toolkit)
+        const applyFavicon = () => {
+          // STEP 1: Install mutation observer to block page from changing favicon
+          const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+              if (mutation.type === 'childList') {
+                mutation.addedNodes.forEach((node) => {
+                  if (node.nodeName === 'LINK' && (node.rel === 'icon' || node.rel === 'shortcut icon')) {
+                    // If it's not ours, remove it immediately
+                    if (node.id !== 'dh-custom-favicon') {
+                      node.remove();
+                    }
+                  }
+                });
+              }
+            });
+          });
+
+          observer.observe(document.head, { childList: true, subtree: false });
+          window.__domoHelperFaviconObserver = observer;
+
+          // STEP 2: Remove all existing favicon links
+          const faviconLinks = document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"]');
+          faviconLinks.forEach(link => {
+            link.remove();
+          });
+
+          // STEP 3: Create and inject our favicon
+          const link = document.createElement('link');
+          link.id = 'dh-custom-favicon';
+          link.rel = 'icon';
+          link.href = message.faviconDataUrl;
+          link.type = 'image/png';
+          document.head.insertBefore(link, document.head.firstChild);
+          
+          // STEP 4: Backup favicon with different rel attribute
+          const link2 = document.createElement('link');
+          link2.id = 'dh-custom-favicon-2';
+          link2.rel = 'shortcut icon';
+          link2.href = message.faviconDataUrl;
+          link2.type = 'image/png';
+          document.head.insertBefore(link2, document.head.firstChild);
+
+          console.log('[Content Main] Favicon applied successfully');
+        };
+
+        // Check if page is already loaded
+        if (document.readyState === 'complete') {
+          // Page already loaded, apply immediately
+          applyFavicon();
+        } else {
+          // Wait for page to load
+          window.addEventListener('load', applyFavicon, { once: true });
+        }
+        
+        sendResponse({ success: true });
+      } catch (err) {
+        console.error('[Content Main] Error applying favicon:', err);
+        sendResponse({ success: false, error: err.message });
+      }
+      return true;
+    }
     
     return false; // No async response needed for other message types
   });
   
   // Signal that content script is ready - message listener is now registered
   window.domoHelperContentScriptReady = true;
-  window.__domoHelperContentMainValid = true; // Mark this context as valid
   console.log('[Content Main] Message listener registered and ready');
+  
+  // === NEW CONTEXT UPDATE LISTENER ===
+  // Listen for context broadcasts from background service worker
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.type === 'TAB_CONTEXT_UPDATED' && message.context) {
+      console.log('[Content Main] Context updated:', message.context.domoObject?.typeId);
+      
+      // Store context in window for feature access
+      window.__domoHelperContext = message.context;
+      
+      // Notify all subscribers
+      window.__domoHelperContextUpdateCallbacks.forEach(callback => {
+        try {
+          callback(message.context);
+        } catch (err) {
+          console.warn('[Content Main] Context callback error:', err.message);
+        }
+      });
+    }
+    return false;
+  });
+  
+  console.log('[Content Main] Context update listener registered');
   
   // Cleanup when leaving relevant pages
   function cleanupAll() {
@@ -483,28 +761,17 @@ const DH = {
     loadedForThisUrl = false;
   }
   
-  // Watch for URL changes and reload features if page type changes
-  PageDetector.startUrlMonitoring((newPageType, previousUrl) => {
-    console.log(`[Content Main] URL changed from ${previousUrl} to ${window.location.href}, page type: ${newPageType}`);
+  // Watch for context changes from background service worker
+  window.subscribeToContextUpdates((context) => {
+    console.log(`[Content Main] Context changed: ${context?.domoObject?.typeId}`);
     
-    // Notify background service worker to update context (new domo-toolkit pattern)
-    try {
-      if (chrome && chrome.runtime && chrome.runtime.id) {
-        chrome.runtime.sendMessage({ type: 'DETECT_PAGE_TYPE' }).catch(() => {
-          console.log('[Content Main] Background service worker not ready, retrying...');
-        });
-      }
-    } catch (error) {
-      console.log('[Content Main] Could not send message to background:', error.message);
-    }
-    
-    // clean up if no longer relevant
-    if (!PageDetector.isRelevant()) {
+    // Clean up if no longer relevant
+    if (!ContextHelper.isRelevantType()) {
       cleanupAll();
       return;
     }
     
-    // reload features for new context
+    // Reload features for new context
     cleanupAll();
     loadFeaturesForPage();
   });
@@ -513,6 +780,7 @@ const DH = {
   document.onreadystatechange = function () {
     if (document.readyState === 'complete') {
       console.log('Page Loaded & Domo Helper Active');
+      
       // Notify background service worker of initial page load (new domo-toolkit pattern)
       try {
         if (chrome && chrome.runtime && chrome.runtime.id) {
@@ -526,10 +794,16 @@ const DH = {
     }
   };
   
-  // If relevant at load, start features
-  if (PageDetector.isRelevant()) {
-    loadFeaturesForPage();
-  } else {
-    cleanupAll();
-  }
+  // Wait for initial context from background, then load features
+  const initialContextCheck = setInterval(() => {
+    if (window.__domoHelperContext) {
+      clearInterval(initialContextCheck);
+      if (ContextHelper.isRelevantType()) {
+        loadFeaturesForPage();
+      }
+    }
+  }, 100);
+  
+  // Timeout after 5 seconds
+  setTimeout(() => clearInterval(initialContextCheck), 5000);
   

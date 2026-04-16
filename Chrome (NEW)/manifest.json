@@ -15,12 +15,11 @@
       "webNavigation"
     ],
     "host_permissions": [
-      "*://*.domo.com/datacenter/dataflows/*/graph",
-      "*://*.domo.com/datacenter/dataflows/*/author",
-      "*://*.domo.com/page/*"
+      "*://*.domo.com/*"
     ],
     "background": {
-      "service_worker": "background.js"
+      "service_worker": "background.js",
+      "type": "module"
     },
     "action": {
       "default_icon": {
@@ -36,7 +35,8 @@
         "matches": [
           "*://*.domo.com/datacenter/dataflows/*/graph",
           "*://*.domo.com/datacenter/dataflows/*/author",
-          "*://*.domo.com/page/*"
+          "*://*.domo.com/page/*",
+          "*://*.domo.com/analyzer*"
         ],
         "js": [
           "jquery-3.7.1.min.js"
@@ -47,7 +47,8 @@
         "matches": [
           "*://*.domo.com/datacenter/dataflows/*/graph",
           "*://*.domo.com/datacenter/dataflows/*/author",
-          "*://*.domo.com/page/*"
+          "*://*.domo.com/page/*",
+          "*://*.domo.com/analyzer*"
         ],
         "js": [
           "content/loader.js"
@@ -67,7 +68,11 @@
           "content/modules/*.js",
           "content/shared/*.js",
           "content/features/*.js",
-          "clipboard-helper.js"
+          "clipboard-helper.js",
+          "fetch-interceptor.js",
+          "src/models/*.js",
+          "src/utils/*.js",
+          "icons/tab-custom-favicons/*.png"
         ],
         "matches": [
           "*://*.domo.com/*"

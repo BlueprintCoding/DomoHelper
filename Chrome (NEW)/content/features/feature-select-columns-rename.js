@@ -685,12 +685,19 @@ function debounce(func, wait) {
 }
 
 // Initialize the feature
-async function init({ DH, PageDetector }) {
+async function init({ DH }) {
   if (isActive) return;
   
-  // Optional: Verify we're on the correct page type
-  if (PageDetector && !PageDetector.isMagicETL()) {
-    console.warn('[Select Columns Rename] Warning: Feature initialized on non-Magic-ETL page');
+  // Subscribe to context updates from background.js
+  if (window.subscribeToContextUpdates) {
+    window.subscribeToContextUpdates((context) => {
+      const isMagicETL = ['DATAFLOW', 'MAGIC_ETL', 'DATAFLOW_TYPE'].includes(context?.domoObject?.typeId);
+      if (!isMagicETL) {
+        console.log('[Select Columns Rename] Non-ETL context detected');
+      } else {
+        console.log('[Select Columns Rename] ETL context detected, feature active');
+      }
+    });
   }
   
   DHref = DH;

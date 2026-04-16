@@ -136,8 +136,18 @@ function init(ctx) {
   DH = ctx.DH;
   console.log('[Column Search] Feature initialized');
   
-  // Optional: Verify we're on the correct page type
-  if (ctx.PageDetector && !ctx.PageDetector.isMagicETL()) {
+  // Support both old (PageDetector) and new (context subscription) systems
+  if (window.subscribeToContextUpdates) {
+    window.subscribeToContextUpdates((context) => {
+      const isMagicETL = context?.domoObject?.typeId === 'DATAFLOW';
+      if (!isMagicETL) {
+        console.log('[Column Search] Non-DATAFLOW context detected');
+        // Feature will handle this by silently failing searches
+      } else {
+        console.log('[Column Search] DATAFLOW context detected, feature active');
+      }
+    });
+  } else if (ctx.PageDetector && !ctx.PageDetector.isMagicETL()) {
     console.warn('[Column Search] Warning: Feature initialized on non-Magic-ETL page');
   }
   

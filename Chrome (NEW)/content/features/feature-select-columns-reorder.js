@@ -669,14 +669,21 @@ function refreshReorderDropdowns() {
 
 
 // Initialize the feature
-async function init({ DH, PageDetector }) {
+async function init({ DH }) {
   if (isActive) return;
   
   console.log('🔧 Initializing Select Columns Reorder...');
   
-  // Optional: Verify we're on the correct page type
-  if (PageDetector && !PageDetector.isMagicETL()) {
-    console.warn('[Select Columns Reorder] Warning: Feature initialized on non-Magic-ETL page');
+  // Subscribe to context updates from background.js
+  if (window.subscribeToContextUpdates) {
+    window.subscribeToContextUpdates((context) => {
+      const isMagicETL = ['DATAFLOW', 'MAGIC_ETL', 'DATAFLOW_TYPE'].includes(context?.domoObject?.typeId);
+      if (!isMagicETL) {
+        console.log('[Select Columns Reorder] Non-ETL context detected');
+      } else {
+        console.log('[Select Columns Reorder] ETL context detected, feature active');
+      }
+    });
   }
   
   DHref = DH;

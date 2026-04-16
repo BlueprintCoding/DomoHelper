@@ -227,8 +227,23 @@ export default {
     settingsState.enabled = settings.enabled;
     settingsState.removeLinks = settings.removeLinks;
     
-    // Optional: Verify we're on the correct page type
-    if (PageDetector && !PageDetector.isPage()) {
+    // Support both old (PageDetector) and new (context subscription) systems
+    if (window.subscribeToContextUpdates) {
+      window.subscribeToContextUpdates((context) => {
+        const isPageContext = context?.domoObject?.typeId === 'PAGE';
+        if (!isPageContext) {
+          console.log('[Page Full Text] Non-PAGE context detected, disabling transformations');
+          resetDataDrillAttributes();
+          resetInvalidLinks();
+          isBound = false;
+        } else {
+          console.log('[Page Full Text] PAGE context detected, enabling feature');
+          if (settingsState.removeLinks) removeInvalidLinks();
+          if (settingsState.enabled) modifyDataDrillAttributes();
+          if (!isBound) bindHandlers();
+        }
+      });
+    } else if (PageDetector && !PageDetector.isPage()) {
       console.warn('[Page Full Text] Warning: Feature initialized on non-PAGE context');
     }
 

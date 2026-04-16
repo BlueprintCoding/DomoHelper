@@ -578,15 +578,22 @@ function bindOpenListModalOnce() {
 ----------------------------------*/
 
 export default {
-    init({ DH, PageDetector }) {
+    init({ DH }) {
       DHref = DH;
       
       // Mark this execution context as valid for our listeners
       window.__domoHelperContextValid = true;
       
-      // Optional: Verify we're on the correct page type
-      if (PageDetector && !PageDetector.isMagicETL()) {
-        console.warn('[Magic Recipes] Warning: Feature initialized on non-Magic-ETL page');
+      // Subscribe to context updates from background.js
+      if (window.subscribeToContextUpdates) {
+        window.subscribeToContextUpdates((context) => {
+          const isMagicETL = ['DATAFLOW', 'MAGIC_ETL', 'DATAFLOW_TYPE'].includes(context?.domoObject?.typeId);
+          if (!isMagicETL) {
+            console.log('[Magic Recipes] Non-ETL context detected, disabling feature');
+          } else {
+            console.log('[Magic Recipes] ETL context detected, feature active');
+          }
+        });
       }
   
       ensureSaveModal();

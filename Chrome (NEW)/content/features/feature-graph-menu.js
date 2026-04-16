@@ -318,8 +318,18 @@ function sync() {
 /* ---------------- lifecycle ---------------- */
 export default {
   init({ PageDetector } = {}) {
-    // Optional: Verify we're on the correct page type
-    if (PageDetector && !PageDetector.isMagicETL()) {
+    // Support both old (PageDetector) and new (context subscription) systems
+    if (window.subscribeToContextUpdates) {
+      window.subscribeToContextUpdates((context) => {
+        const isMagicETL = context?.domoObject?.typeId === 'DATAFLOW';
+        if (!isMagicETL) {
+          console.log('[Graph Menu] Non-DATAFLOW context detected');
+          // Feature will automatically stop working since graph menu won't render
+        } else {
+          console.log('[Graph Menu] DATAFLOW context detected, feature active');
+        }
+      });
+    } else if (PageDetector && !PageDetector.isMagicETL()) {
       console.warn('[Graph Menu] Warning: Feature initialized on non-Magic-ETL page');
     }
     
