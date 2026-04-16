@@ -40,30 +40,6 @@ function inspectNodeDragState() {
 }
 
 /**
- * Try to trigger React Flow's drag detection on a node
- * React Flow might use different handlers/libraries, so we try multiple approaches
- */
-function triggerNodeDragStart(node, x, y) {
-  // Try finding React event handlers attached to the element
-  const keys = Object.keys(node);
-  const reactFiberKey = keys.find(key => key.startsWith('__react'));
-  
-  if (reactFiberKey) {
-    console.log('[Node Align] Found React fiber, attempting direct handler invocation');
-    try {
-      const fiber = node[reactFiberKey];
-      // React might have handlers we can access
-      if (fiber && fiber.memoizedProps && fiber.memoizedProps.onMouseDown) {
-        console.log('[Node Align] Calling React onMouseDown handler directly');
-        fiber.memoizedProps.onMouseDown({ clientX: x, clientY: y, buttons: 1, preventDefault: () => {}, stopPropagation: () => {} });
-      }
-    } catch (e) {
-      console.log('[Node Align] Could not invoke React handler:', e.message);
-    }
-  }
-}
-
-/**
  * Get all selected nodes from the canvas
  * @returns {Array} Array of selected node elements
  */
@@ -740,14 +716,6 @@ async function centerNodesHorizontally() {
   console.log('[Node Align] ✓ Nodes centered horizontally at X=' + referenceX + ', spaced vertically by ' + GAP + 'px');
   
   return true;
-}
-
-/**
- * Get info about currently selected nodes (for debugging/UI display)
- * @returns {Array} Array of node info objects
- */
-function getSelectedNodesInfo() {
-  return getSelectedNodes().map(getNodeInfo);
 }
 
 // Export the feature

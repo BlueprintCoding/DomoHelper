@@ -60,40 +60,6 @@ setupClipboardInterceptor();
   (document.head || document.documentElement).appendChild(script);
 })();
 
-// Helper function to read clipboard via page context
-let clipboardRequestId = 0;
-function readClipboardViaPageContext() {
-  return new Promise((resolve, reject) => {
-    const id = ++clipboardRequestId;
-    console.log(`[Content Script] Sending clipboard request ${id}`);
-    
-    const timeout = setTimeout(() => {
-      window.removeEventListener('message', handler);
-      console.error(`[Content Script] Clipboard request ${id} timed out`);
-      reject(new Error('Clipboard read timeout'));
-    }, 5000);
-    
-    const handler = (e) => {
-      if (e.source !== window) return;
-      if (e.data.type !== 'DH_CLIPBOARD_RESPONSE' || e.data.requestId !== id) return;
-      
-      clearTimeout(timeout);
-      window.removeEventListener('message', handler);
-      
-      console.log(`[Content Script] Received clipboard response ${id}:`, e.data.success ? 'success' : 'failed');
-      
-      if (e.data.success) {
-        resolve(e.data.data);
-      } else {
-        reject(new Error(e.data.error || 'Clipboard read failed'));
-      }
-    };
-    
-    window.addEventListener('message', handler);
-    window.postMessage({ type: 'DH_CLIPBOARD_REQUEST', requestId: id }, '*');
-  });
-}
-
 // Simple shared helpers
 const DH = {
     sleep: (ms) => new Promise(r => setTimeout(r, ms)),
